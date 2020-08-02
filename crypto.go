@@ -26,7 +26,7 @@ func newNonce(data []byte) *nonce {
 	return no
 }
 
-func (no *nonce) Incr() {
+func (no *nonce) incr() {
 	n := binary.LittleEndian.Uint64(no.data[:])
 	n++
 	binary.LittleEndian.PutUint64(no.data[:], n)
@@ -81,5 +81,12 @@ func NewCryptoCodec() *CryptoCodec {
 // encode
 func (codec *CryptoCodec) Encrypto(src, dst []byte) {
 	nonce := codec.writeNonce.Load().(*nonce)
+	salsa20XORKeyStream(src, &codec.key, &nonce.data, 1)
+	nonce.incr()
+}
 
+func (codec *CryptoCodec) Decrypto(src, dst []byte) {
+	nonce := codec.readNonce.Load().(*nonce)
+	salsa20XORKeyStream(src, &codec.key, &nonce.data, 1)
+	nonce.incr()
 }
