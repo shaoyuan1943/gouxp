@@ -166,7 +166,7 @@ func (codec *Salsa20Crypto) Decrypto(src []byte) (dst []byte, err error) {
 	salsa20.XORKeyStream(codec.dePoly1305Key[:], codec.dePoly1305Key[:], nonce.data, &codec.key)
 	copy(codec.deMacBuf[:], src[:macLen])
 	if !poly1305.Verify(&codec.deMacBuf, src[macLen:], &codec.dePoly1305Key) {
-		return nil, errors.New("invalid data format")
+		return nil, errors.New("message authentication failed")
 	}
 
 	salsa20.XORKeyStream(src[macLen:], src[macLen:], nonce.data, &codec.key)
@@ -177,12 +177,12 @@ func (codec *Salsa20Crypto) Decrypto(src []byte) (dst []byte, err error) {
 type CryptoType byte
 
 const (
-	UseChacha20poly1305 CryptoType = iota
+	UseChacha20 CryptoType = iota
 	UseSalsa20
 )
 
 func CreateCryptoCodec(tp CryptoType) CryptoCodec {
-	if tp == UseChacha20poly1305 {
+	if tp == UseChacha20 {
 		return NewChacha20poly1305CryptoCodec()
 	} else if tp == UseSalsa20 {
 		return NewSalsa20CryptoCodec()
