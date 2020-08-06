@@ -3,7 +3,6 @@ package gouxp
 import (
 	"crypto/cipher"
 	"encoding/binary"
-	"errors"
 	"sync/atomic"
 
 	"golang.org/x/crypto/poly1305"
@@ -29,15 +28,15 @@ type CryptoNonce struct {
 	data []byte
 }
 
-func (cn *CryptoNonce) incr() {
-	l := len(cn.data)
+func (nonce *CryptoNonce) incr() {
+	l := len(nonce.data)
 	if l > 8 {
 		l = 8
 	}
 
-	n := binary.LittleEndian.Uint64(cn.data[:l])
+	n := binary.LittleEndian.Uint64(nonce.data[:l])
 	n++
-	binary.LittleEndian.PutUint64(cn.data[:l], n)
+	binary.LittleEndian.PutUint64(nonce.data[:l], n)
 }
 
 type Chacha20poly1305Crypto struct {
@@ -111,7 +110,7 @@ func NewChacha20poly1305CryptoCodec() *Chacha20poly1305Crypto {
 }
 
 type Salsa20Crypto struct {
-	enMacBuf      [macLen]byte
+	enMacBuf      [macLen]byte // avoid make array every times
 	deMacBuf      [macLen]byte
 	key           [32]byte
 	enPoly1305Key [32]byte
@@ -166,7 +165,7 @@ func (codec *Salsa20Crypto) Decrypto(src []byte) (dst []byte, err error) {
 	salsa20.XORKeyStream(codec.dePoly1305Key[:], codec.dePoly1305Key[:], nonce.data, &codec.key)
 	copy(codec.deMacBuf[:], src[:macLen])
 	if !poly1305.Verify(&codec.deMacBuf, src[macLen:], &codec.dePoly1305Key) {
-		return nil, errors.New("message authentication failed")
+		return nil, ErrMessageAuthFailed
 	}
 
 	salsa20.XORKeyStream(src[macLen:], src[macLen:], nonce.data, &codec.key)
