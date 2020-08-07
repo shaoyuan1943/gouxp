@@ -52,7 +52,6 @@ func (codec *Chacha20poly1305Crypto) SetKey(key []byte) {
 
 func (codec *Chacha20poly1305Crypto) setNonce(nonce []byte, nonceValue *atomic.Value) {
 	cryptoNonce := nonceValue.Load().(*CryptoNonce)
-	cryptoNonce.data = make([]byte, chacha20poly1305.NonceSize)
 	copy(cryptoNonce.data[:0], nonce)
 	nonceValue.Store(cryptoNonce)
 }
@@ -84,12 +83,12 @@ func (codec *Chacha20poly1305Crypto) Decrypto(src []byte) (dst []byte, err error
 // In chacha20poly1305, data format is |---DATA---|---MAC---|
 // In gouxp, data format is |---MAC---|---DATA---|
 // When use chacha20poly1305, must modify data format to adapt chacha20poly1305.
-// Chacha20poly1305 use 24bytes nonce
+// Chacha20poly1305 use 12bytes nonce
 // In other way, you can use poly1305 + salsa20/chacha20 to avoid move origin data
 func NewChacha20poly1305CryptoCodec() *Chacha20poly1305Crypto {
 	codec := &Chacha20poly1305Crypto{}
-	codec.readNonce.Store(&CryptoNonce{})
-	codec.writeNonce.Store(&CryptoNonce{})
+	codec.readNonce.Store(&CryptoNonce{data: make([]byte, chacha20poly1305.NonceSize)})
+	codec.writeNonce.Store(&CryptoNonce{data: make([]byte, chacha20poly1305.NonceSize)})
 	codec.SetKey(initCryptoKey)
 	codec.SetReadNonce(initCryptoNonce)
 	codec.SetWriteNonce(initCryptoNonce)
@@ -117,6 +116,7 @@ type Salsa20Crypto struct {
 	dePoly1305Key [32]byte
 	readNonce     atomic.Value
 	writeNonce    atomic.Value
+	nonceSize     int
 }
 
 func (codec *Salsa20Crypto) SetKey(key []byte) {
@@ -124,8 +124,11 @@ func (codec *Salsa20Crypto) SetKey(key []byte) {
 }
 
 func (codec *Salsa20Crypto) setNonce(nonce []byte, nonceValue *atomic.Value) {
+	if len(nonce) < codec.nonceSize {
+		panic(ErrInvalidNonceSize)
+	}
+
 	cryptoNonce := nonceValue.Load().(*CryptoNonce)
-	cryptoNonce.data = make([]byte, 24)
 	copy(cryptoNonce.data[:0], nonce)
 	nonceValue.Store(cryptoNonce)
 }
@@ -138,11 +141,12 @@ func (codec *Salsa20Crypto) SetWriteNonce(nonce []byte) {
 	codec.setNonce(nonce, &codec.writeNonce)
 }
 
-// Salsa20 use 8 or 24bytes nonce, we choose 24bytes
+// Salsa20 use 8 or 24bytes nonce, we choose 8bytes
 func NewSalsa20CryptoCodec() *Salsa20Crypto {
 	codec := &Salsa20Crypto{}
-	codec.readNonce.Store(&CryptoNonce{})
-	codec.writeNonce.Store(&CryptoNonce{})
+	codec.nonceSize = 8
+	codec.readNonce.Store(&CryptoNonce{data: make([]byte, codec.nonceSize)})
+	codec.writeNonce.Store(&CryptoNonce{data: make([]byte, codec.nonceSize)})
 	codec.SetKey(initCryptoKey)
 	codec.SetReadNonce(initCryptoNonce)
 	codec.SetWriteNonce(initCryptoNonce)
