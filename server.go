@@ -3,6 +3,7 @@ package gouxp
 import (
 	"encoding/binary"
 	"net"
+	"sync"
 	"sync/atomic"
 
 	"github.com/shaoyuan1943/gouxp/dh64"
@@ -11,25 +12,14 @@ import (
 )
 
 type Server struct {
-	// connection
-	rwc net.PacketConn
-
-	// callback for some events in server
-	handler ServerHandler
-
-	// all clients, if client lost or disconnected, Server will delete *Conn
-	conns map[string]*ServerConn
-
+	rwc       net.PacketConn
+	handler   ServerHandler
+	conns     map[string]*ServerConn
 	connGoneC chan *ServerConn
-
-	// user shuts down manually
-	closeC chan struct{}
-
-	closed atomic.Value
-
+	closeC    chan struct{}
+	closed    atomic.Value
 	scheduler *TimerScheduler
-
-	cryptoCodec CryptoCodec
+	locker    sync.Mutex
 }
 
 func (s *Server) notifyConnHasGone(conn *ServerConn) {
@@ -39,12 +29,14 @@ func (s *Server) notifyConnHasGone(conn *ServerConn) {
 func (s *Server) checkConns() {
 	for {
 		select {
+		case <-s.closeC:
+			return
 		case conn := <-s.connGoneC:
+			s.locker.Lock()
 			if _, ok := s.conns[conn.addr.String()]; ok {
 				delete(s.conns, conn.addr.String())
 			}
-		case <-s.closeC:
-			return
+			s.locker.Unlock()
 		}
 	}
 }
@@ -68,8 +60,6 @@ func (s *Server) readRawDataLoop() {
 		}
 	}
 }
-
-func (s *Server) onHeartbeat(conn *ServerConn, data []byte) {}
 
 func (s *Server) onNewConnection(addr net.Addr, data []byte) {
 	conn := &ServerConn{}
@@ -127,7 +117,13 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) {
 	conn.kcp = gokcp.NewKCP(convID, conn.onKCPDataOutput)
 	conn.kcp.SetBufferReserved(int(PacketHeaderSize))
 	conn.kcp.SetNoDelay(true, 10, 2, true)
+	conn.closed.Store(false)
+	conn.closer = conn
+	conn.server = s
+	conn.onHandshaked()
 
+	s.locker.Lock()
+	defer s.locker.Unlock()
 	s.conns[addr.String()] = conn
 }
 
@@ -138,28 +134,27 @@ func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
 		return
 	}
 
+	conn.locker.Lock()
 	if conn.cryptoCodec != nil {
 		plainData, err := conn.cryptoCodec.Decrypto(data)
 		if err != nil {
+			conn.locker.Unlock()
 			conn.close(err)
 			return
 		}
 
 		data = plainData
 	}
+	conn.locker.Unlock()
 
 	protoType := ProtoType(binary.LittleEndian.Uint16(data))
 	data = data[protoSize:]
 	if protoType == protoTypeHandshake {
 		s.onNewConnection(addr, data)
 	} else if protoType == protoTypeHeartbeat {
-		s.onHeartbeat(conn, data)
+		conn.onHeartbeat(data)
 	} else if protoType == protoTypeData {
-		err := conn.onKCPDataComing(data)
-		if err != nil {
-			conn.close(err)
-			return
-		}
+		conn.onKCPDataInput(data)
 	} else {
 		// TODO: unknown protocol type
 	}
@@ -175,20 +170,19 @@ func (s *Server) close(err error) {
 		return
 	}
 
+	s.locker.Lock()
+	defer s.locker.Unlock()
+
 	close(s.closeC)
-	// TODO: need locker
 	for _, conn := range s.conns {
 		conn.close(err)
 	}
 
 	s.closed.Store(true)
-	s.handler.OnClosed(err)
-}
 
-func (s *Server) SetCryptoCodec(cryptoCodec CryptoCodec) {
-	if cryptoCodec != nil {
-		s.cryptoCodec = cryptoCodec
-	}
+	go func() {
+		s.handler.OnClosed(err)
+	}()
 }
 
 func NewServer(rwc net.PacketConn, handler ServerHandler, parallelCount uint32) *Server {
@@ -204,8 +198,9 @@ func NewServer(rwc net.PacketConn, handler ServerHandler, parallelCount uint32) 
 		closeC:    make(chan struct{}),
 		scheduler: NewTimerScheduler(parallelCount),
 	}
+
 	s.closed.Store(true)
-	s.SetCryptoCodec(CreateCryptoCodec(UseChacha20))
 	go s.checkConns()
+	go s.readRawDataLoop()
 	return s
 }
