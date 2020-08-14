@@ -199,7 +199,7 @@ func NewServer(rwc net.PacketConn, handler ServerHandler, parallelCount uint32) 
 		scheduler: NewTimerScheduler(parallelCount),
 	}
 
-	s.closed.Store(true)
+	s.closed.Store(false)
 	go s.checkConns()
 	go s.readRawDataLoop()
 	return s

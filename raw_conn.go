@@ -1,6 +1,7 @@
 package gouxp
 
 import (
+	"encoding/binary"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -24,6 +25,10 @@ type RawConn struct {
 	closeC      chan struct{}
 	closed      atomic.Value
 	locker      sync.Mutex
+}
+
+func (conn *RawConn) SetWindow(sndWnd, rcvWnd int) {
+	conn.kcp.SetWndSize(sndWnd, rcvWnd)
 }
 
 func (conn *RawConn) SetCryptoCodec(cryptoCodec CryptoCodec) {
@@ -76,6 +81,8 @@ func (conn *RawConn) onKCPDataInput(data []byte) {
 }
 
 func (conn *RawConn) onKCPDataOutput(data []byte) {
+	binary.LittleEndian.PutUint16(data[macSize:], uint16(protoTypeData))
+
 	conn.locker.Lock()
 	if conn.cryptoCodec != nil {
 		cryptoBuffer, err := conn.cryptoCodec.Encrypto(data)
