@@ -2,40 +2,31 @@ package gouxp
 
 import (
 	"time"
+
+	"github.com/shaoyuan1943/gokcp"
 )
 
 // gouxp packet format:
-// |---MAC---|---CMD---|---EXTRA---|---USER DATA---|
-// |  16byte |  2byte  |    2byte  |     ...       |
-//								   |    KCP DATA   |
-//           |                CRYPTO               |
+// |---MAC---|---PROTO TYPE---|-----------------USER DATA-----------------|
+// |  16byte |     2byte      |                 ...                       |
+//                            |-------KCP HEADER-------|-------DATA-------|
+
 // MAC: check data integrity
-// CMD: data type, value type is CmdID
 
 // packet protocol:
 // raw data -> kcp data -> compress -> crypto -> fec
 const (
-	macLen          uint32 = 16
-	cmdLen          uint32 = 2
-	extraLen        uint32 = 2
-	PacketHeaderLen uint32 = macLen + cmdLen + extraLen
+	macSize          uint16 = 16
+	protoSize        uint16 = 2
+	PacketHeaderSize uint16 = macSize + protoSize
 )
 
-type CmdID uint16
+type ProtoType uint16
 
 const (
-	cmdHello      CmdID = 0x01
-	cmdDataComing CmdID = 0x02
-	cmdHeartbeat  CmdID = 0x03
-	cmdGoodbye    CmdID = 0x04
-)
-
-type SessionState uint16
-
-const (
-	stateUnknow SessionState = 0x04
-	stateReady  SessionState = 0x05
-	stateGone   SessionState = 0x06
+	protoTypeHandshake ProtoType = 0x01
+	protoTypeHeartbeat ProtoType = 0x02
+	protoTypeData      ProtoType = 0x03
 )
 
 var ConvID uint32 = 555
@@ -43,3 +34,8 @@ var ConvID uint32 = 555
 func NowMS() int64 {
 	return time.Now().Unix()
 }
+
+const (
+	MaxPacketSize       = gokcp.KCP_MTU_DEF - uint32(PacketHeaderSize) - gokcp.KCP_OVERHEAD
+	handshakeBufferSize = PacketHeaderSize + 4 + 8
+)

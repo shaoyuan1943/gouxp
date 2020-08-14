@@ -20,8 +20,8 @@ type CryptoCodec interface {
 }
 
 var (
-	initCryptoKey   = []byte("0053A6F94C9FF24598EB3E91E4378ADD")
-	initCryptoNonce = []byte("0D74DB42A91077DEB3E91E43")
+	InitCryptoKey   = []byte("0053A6F94C9FF24598EB3E91E4378ADD")
+	InitCryptoNonce = []byte("0D74DB42A91077DEB3E91E43")
 )
 
 type CryptoNonce struct {
@@ -89,9 +89,9 @@ func NewChacha20poly1305CryptoCodec() *Chacha20poly1305Crypto {
 	codec := &Chacha20poly1305Crypto{}
 	codec.readNonce.Store(&CryptoNonce{data: make([]byte, chacha20poly1305.NonceSize)})
 	codec.writeNonce.Store(&CryptoNonce{data: make([]byte, chacha20poly1305.NonceSize)})
-	codec.SetKey(initCryptoKey)
-	codec.SetReadNonce(initCryptoNonce)
-	codec.SetWriteNonce(initCryptoNonce)
+	codec.SetKey(InitCryptoKey)
+	codec.SetReadNonce(InitCryptoNonce)
+	codec.SetWriteNonce(InitCryptoNonce)
 
 	aead, err := chacha20poly1305.New(codec.key[:])
 	if err != nil {
@@ -100,7 +100,7 @@ func NewChacha20poly1305CryptoCodec() *Chacha20poly1305Crypto {
 
 	// Important!
 	// In gouxp, reserved MAC size is 16bytes in data head, so your encoder MUST use 16bytes MAC
-	if aead.Overhead() < int(macLen) {
+	if aead.Overhead() < int(macSize) {
 		panic("reserved mac size invalid")
 	}
 
@@ -109,8 +109,8 @@ func NewChacha20poly1305CryptoCodec() *Chacha20poly1305Crypto {
 }
 
 type Salsa20Crypto struct {
-	enMacBuf      [macLen]byte // avoid make array every times
-	deMacBuf      [macLen]byte
+	enMacBuf      [macSize]byte // avoid make array every times
+	deMacBuf      [macSize]byte
 	key           [32]byte
 	enPoly1305Key [32]byte
 	dePoly1305Key [32]byte
@@ -147,18 +147,18 @@ func NewSalsa20CryptoCodec() *Salsa20Crypto {
 	codec.nonceSize = 8
 	codec.readNonce.Store(&CryptoNonce{data: make([]byte, codec.nonceSize)})
 	codec.writeNonce.Store(&CryptoNonce{data: make([]byte, codec.nonceSize)})
-	codec.SetKey(initCryptoKey)
-	codec.SetReadNonce(initCryptoNonce)
-	codec.SetWriteNonce(initCryptoNonce)
+	codec.SetKey(InitCryptoKey)
+	codec.SetReadNonce(InitCryptoNonce)
+	codec.SetWriteNonce(InitCryptoNonce)
 	return codec
 }
 
 func (codec *Salsa20Crypto) Encrypto(src []byte) (dst []byte, err error) {
 	nonce := codec.writeNonce.Load().(*CryptoNonce)
-	salsa20.XORKeyStream(src[macLen:], src[macLen:], nonce.data, &codec.key)
+	salsa20.XORKeyStream(src[macSize:], src[macSize:], nonce.data, &codec.key)
 
 	salsa20.XORKeyStream(codec.enPoly1305Key[:], codec.enPoly1305Key[:], nonce.data, &codec.key)
-	poly1305.Sum(&codec.enMacBuf, src[macLen:], &codec.enPoly1305Key)
+	poly1305.Sum(&codec.enMacBuf, src[macSize:], &codec.enPoly1305Key)
 	copy(src, codec.enMacBuf[:])
 	nonce.incr()
 	return src, nil
@@ -167,20 +167,21 @@ func (codec *Salsa20Crypto) Encrypto(src []byte) (dst []byte, err error) {
 func (codec *Salsa20Crypto) Decrypto(src []byte) (dst []byte, err error) {
 	nonce := codec.readNonce.Load().(*CryptoNonce)
 	salsa20.XORKeyStream(codec.dePoly1305Key[:], codec.dePoly1305Key[:], nonce.data, &codec.key)
-	copy(codec.deMacBuf[:], src[:macLen])
-	if !poly1305.Verify(&codec.deMacBuf, src[macLen:], &codec.dePoly1305Key) {
+	copy(codec.deMacBuf[:], src[:macSize])
+	if !poly1305.Verify(&codec.deMacBuf, src[macSize:], &codec.dePoly1305Key) {
 		return nil, ErrMessageAuthFailed
 	}
 
-	salsa20.XORKeyStream(src[macLen:], src[macLen:], nonce.data, &codec.key)
+	salsa20.XORKeyStream(src[macSize:], src[macSize:], nonce.data, &codec.key)
 	nonce.incr()
-	return src[macLen:], nil
+	return src[macSize:], nil
 }
 
 type CryptoType byte
 
 const (
-	UseChacha20 CryptoType = iota
+	NoneCrypto CryptoType = iota
+	UseChacha20
 	UseSalsa20
 )
 
@@ -190,6 +191,6 @@ func CreateCryptoCodec(tp CryptoType) CryptoCodec {
 	} else if tp == UseSalsa20 {
 		return NewSalsa20CryptoCodec()
 	} else {
-		panic("unknow crypto type.")
+		return nil
 	}
 }
