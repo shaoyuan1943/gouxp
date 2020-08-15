@@ -107,20 +107,23 @@ func (conn *RawConn) rwUpdate() bool {
 	// KCP.Send
 	waitSend := conn.kcp.WaitSend()
 	if waitSend < int(conn.kcp.SendWnd()) && waitSend < int(conn.kcp.RemoteWnd()) {
-		var outPackets [][]byte
 		conn.locker.Lock()
+
+		var outPackets [][]byte
 		outPackets = append(outPackets, conn.outPackets...)
 		conn.outPackets = conn.outPackets[:0]
 		conn.packetsLen = 0
-		conn.locker.Unlock()
 
 		for _, packet := range outPackets {
 			err := conn.kcp.Send(packet)
 			if err != nil {
+				conn.locker.Unlock()
 				conn.close(err)
 				return false
 			}
 		}
+
+		conn.locker.Unlock()
 	}
 
 	// KCP.Recv
