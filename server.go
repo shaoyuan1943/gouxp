@@ -22,22 +22,12 @@ type Server struct {
 	locker    sync.Mutex
 }
 
-func (s *Server) notifyConnHasGone(conn *ServerConn) {
-	s.connGoneC <- conn
-}
+func (s *Server) removeConnection(conn *ServerConn) {
+	s.locker.Lock()
+	defer s.locker.Unlock()
 
-func (s *Server) checkConns() {
-	for {
-		select {
-		case <-s.closeC:
-			return
-		case conn := <-s.connGoneC:
-			s.locker.Lock()
-			if _, ok := s.conns[conn.addr.String()]; ok {
-				delete(s.conns, conn.addr.String())
-			}
-			s.locker.Unlock()
-		}
+	if _, ok := s.conns[conn.addr.String()]; ok {
+		delete(s.conns, conn.addr.String())
 	}
 }
 
@@ -128,11 +118,14 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) {
 }
 
 func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
+	s.locker.Lock()
 	conn, ok := s.conns[addr.String()]
 	if !ok {
+		s.locker.Unlock()
 		s.onNewConnection(addr, data)
 		return
 	}
+	s.locker.Unlock()
 
 	conn.locker.Lock()
 	if conn.cryptoCodec != nil {
@@ -150,6 +143,9 @@ func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
 	protoType := ProtoType(binary.LittleEndian.Uint16(data))
 	data = data[protoSize:]
 	if protoType == protoTypeHandshake {
+		// TODO: if connection is exist but client send handshake protocol, how to handle it ?
+		// 1. make new ServerConn directly
+		// 2. reuse exist connection and unsend data
 		s.onNewConnection(addr, data)
 	} else if protoType == protoTypeHeartbeat {
 		conn.onHeartbeat(data)
@@ -170,19 +166,21 @@ func (s *Server) close(err error) {
 		return
 	}
 
-	s.locker.Lock()
-	defer s.locker.Unlock()
+	s.closed.Store(true)
 
-	close(s.closeC)
+	s.locker.Lock()
+	tmp := make([]*ServerConn, len(s.conns))
 	for _, conn := range s.conns {
+		tmp = append(tmp, conn)
+	}
+	s.locker.Unlock()
+
+	for _, conn := range tmp {
 		conn.close(err)
 	}
 
-	s.closed.Store(true)
-
-	go func() {
-		s.handler.OnClosed(err)
-	}()
+	close(s.closeC)
+	s.handler.OnClosed(err)
 }
 
 func NewServer(rwc net.PacketConn, handler ServerHandler, parallelCount uint32) *Server {
@@ -200,7 +198,6 @@ func NewServer(rwc net.PacketConn, handler ServerHandler, parallelCount uint32) 
 	}
 
 	s.closed.Store(false)
-	go s.checkConns()
 	go s.readRawDataLoop()
 	return s
 }

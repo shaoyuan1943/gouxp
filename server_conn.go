@@ -84,8 +84,5 @@ func (conn *ServerConn) close(err error) {
 	close(conn.closeC)
 	conn.closed.Store(true)
 	conn.handler.OnClosed(err)
-
-	go func() {
-		conn.server.notifyConnHasGone(conn)
-	}()
+	conn.server.removeConnection(conn)
 }

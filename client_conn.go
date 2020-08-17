@@ -99,8 +99,6 @@ func (conn *ClientConn) onHandshake(data []byte) {
 			}
 		}
 	}()
-
-	go conn.readRawDataLoop()
 }
 
 func (conn *ClientConn) onRecvRawData(data []byte) {
@@ -192,5 +190,8 @@ func NewClientConn(rwc net.PacketConn, addr net.Addr, handler ConnHandler) *Clie
 	conn.kcp.SetNoDelay(true, 10, 2, true)
 	conn.closed.Store(false)
 	conn.closer = conn
+
+	go conn.readRawDataLoop()
+
 	return conn
 }
