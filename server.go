@@ -75,31 +75,34 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) {
 		return
 	}
 
-	clientPublicKey := binary.LittleEndian.Uint64(data[2:])
-	if clientPublicKey == 0 {
-		return
-	}
-
-	serverPrivateKey, serverPublicKey := dh64.KeyPair()
-	num := dh64.Secret(serverPrivateKey, clientPublicKey)
 	var nonce [8]byte
-	binary.LittleEndian.PutUint64(nonce[:], num)
-
 	var handshakeRspBuffer [PacketHeaderSize + 8]byte
-	binary.LittleEndian.PutUint16(handshakeRspBuffer[macSize:], uint16(protoTypeHandshake))
-	binary.LittleEndian.PutUint64(handshakeRspBuffer[PacketHeaderSize:], serverPublicKey)
-	cipherData, err := conn.cryptoCodec.Encrypto(handshakeRspBuffer[:])
+	if conn.cryptoCodec != nil {
+		clientPublicKey := binary.LittleEndian.Uint64(data[2:])
+		if clientPublicKey == 0 {
+			return
+		}
+
+		serverPrivateKey, serverPublicKey := dh64.KeyPair()
+		num := dh64.Secret(serverPrivateKey, clientPublicKey)
+		binary.LittleEndian.PutUint64(nonce[:], num)
+		binary.LittleEndian.PutUint16(handshakeRspBuffer[macSize:], uint16(protoTypeHandshake))
+		binary.LittleEndian.PutUint64(handshakeRspBuffer[PacketHeaderSize:], serverPublicKey)
+		_, err := conn.cryptoCodec.Encrypto(handshakeRspBuffer[:])
+		if err != nil {
+			return
+		}
+	}
+
+	_, err := s.rwc.WriteTo(handshakeRspBuffer[:], addr)
 	if err != nil {
 		return
 	}
 
-	_, err = s.rwc.WriteTo(cipherData, addr)
-	if err != nil {
-		return
+	if conn.cryptoCodec != nil {
+		conn.cryptoCodec.SetReadNonce(nonce[:])
+		conn.cryptoCodec.SetWriteNonce(nonce[:])
 	}
-
-	conn.cryptoCodec.SetReadNonce(nonce[:])
-	conn.cryptoCodec.SetWriteNonce(nonce[:])
 
 	conn.convID = convID
 	conn.rwc = s.rwc

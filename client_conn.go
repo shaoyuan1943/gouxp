@@ -45,6 +45,11 @@ func (conn *ClientConn) Start() error {
 	if conn.cryptoCodec != nil {
 		conn.cryptoKeys.privateKey, conn.cryptoKeys.publicKey = dh64.KeyPair()
 		binary.LittleEndian.PutUint64(handshakeBuffer[PacketHeaderSize+4:], conn.cryptoKeys.publicKey)
+
+		_, err := conn.cryptoCodec.Encrypto(handshakeBuffer[:])
+		if err != nil {
+			return err
+		}
 	}
 
 	_, err := conn.rwc.WriteTo(handshakeBuffer[:], conn.addr)

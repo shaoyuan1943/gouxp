@@ -7,7 +7,6 @@ type ServerHandler interface {
 
 type ConnHandler interface {
 	OnClosed(err error)
-	OnSendDataError(data []byte, err error)
 	OnNewDataComing(data []byte)
 	OnReady()
 }
