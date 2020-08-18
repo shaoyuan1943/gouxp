@@ -5,6 +5,7 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/shaoyuan1943/gouxp/dh64"
 
@@ -15,11 +16,26 @@ type Server struct {
 	rwc       net.PacketConn
 	handler   ServerHandler
 	conns     map[string]*ServerConn
-	connGoneC chan *ServerConn
 	closeC    chan struct{}
 	closed    atomic.Value
 	scheduler *TimerScheduler
 	locker    sync.Mutex
+	started   int64
+}
+
+func (s *Server) waitForStart() {
+	for {
+		if atomic.LoadInt64(&s.started) != 0 {
+			return
+		}
+		select {
+		case <-s.closeC:
+			return
+		default:
+		}
+
+		time.Sleep(1 * time.Millisecond)
+	}
 }
 
 func (s *Server) removeConnection(conn *ServerConn) {
@@ -32,6 +48,8 @@ func (s *Server) removeConnection(conn *ServerConn) {
 }
 
 func (s *Server) readRawDataLoop() {
+	s.waitForStart()
+
 	buffer := make([]byte, MaxBufferSize)
 	for {
 		select {
@@ -62,6 +80,8 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) {
 		}
 
 		data = plainData
+	} else {
+		data = data[macSize:]
 	}
 
 	protoType := ProtoType(binary.LittleEndian.Uint16(data))
@@ -72,11 +92,13 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) {
 	data = data[protoSize:]
 	convID := binary.LittleEndian.Uint32(data)
 	if convID == 0 {
+		logger.Debug("convID is 0")
 		return
 	}
 
 	var nonce [8]byte
 	var handshakeRspBuffer [PacketHeaderSize + 8]byte
+	binary.LittleEndian.PutUint16(handshakeRspBuffer[macSize:], uint16(protoTypeHandshake))
 	if conn.cryptoCodec != nil {
 		clientPublicKey := binary.LittleEndian.Uint64(data[2:])
 		if clientPublicKey == 0 {
@@ -86,7 +108,6 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) {
 		serverPrivateKey, serverPublicKey := dh64.KeyPair()
 		num := dh64.Secret(serverPrivateKey, clientPublicKey)
 		binary.LittleEndian.PutUint64(nonce[:], num)
-		binary.LittleEndian.PutUint16(handshakeRspBuffer[macSize:], uint16(protoTypeHandshake))
 		binary.LittleEndian.PutUint64(handshakeRspBuffer[PacketHeaderSize:], serverPublicKey)
 		_, err := conn.cryptoCodec.Encrypto(handshakeRspBuffer[:])
 		if err != nil {
@@ -118,6 +139,8 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 	s.conns[addr.String()] = conn
+
+	logger.Debugf("OnNewConnection: %v", convID)
 }
 
 func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
@@ -140,6 +163,8 @@ func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
 		}
 
 		data = plainData
+	} else {
+		data = data[macSize:]
 	}
 	conn.locker.Unlock()
 
@@ -153,6 +178,7 @@ func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
 	} else if protoType == protoTypeHeartbeat {
 		conn.onHeartbeat(data)
 	} else if protoType == protoTypeData {
+		logger.Debugf("recv kcp data")
 		conn.onKCPDataInput(data)
 	} else {
 		// TODO: unknown protocol type
@@ -186,6 +212,12 @@ func (s *Server) close(err error) {
 	s.handler.OnClosed(err)
 }
 
+func (s *Server) Start() {
+	if atomic.LoadInt64(&s.started) == 0 {
+		atomic.StoreInt64(&s.started, 1)
+	}
+}
+
 func NewServer(rwc net.PacketConn, handler ServerHandler, parallelCount uint32) *Server {
 	if rwc == nil || handler == nil {
 		panic("Invalid params.")
@@ -195,7 +227,6 @@ func NewServer(rwc net.PacketConn, handler ServerHandler, parallelCount uint32) 
 		rwc:       rwc,
 		handler:   handler,
 		conns:     make(map[string]*ServerConn),
-		connGoneC: make(chan *ServerConn, 32),
 		closeC:    make(chan struct{}),
 		scheduler: NewTimerScheduler(parallelCount),
 	}

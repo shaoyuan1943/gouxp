@@ -75,6 +75,7 @@ func (conn *ClientConn) onHandshake(data []byte) {
 		conn.cryptoCodec.SetWriteNonce(nonce[:])
 	}
 
+	logger.Debugf("first heartbeat")
 	conn.heartbeat()
 	conn.handler.OnReady()
 
@@ -118,10 +119,13 @@ func (conn *ClientConn) onRecvRawData(data []byte) {
 		}
 
 		data = plainData
+	} else {
+		data = data[macSize:]
 	}
 	conn.locker.Unlock()
 
 	protoType := ProtoType(binary.LittleEndian.Uint16(data))
+	logger.Debugf("recv data, protocol type: %v", protoType)
 	data = data[protoSize:]
 	if protoType == protoTypeHandshake {
 		conn.onHandshake(data)
