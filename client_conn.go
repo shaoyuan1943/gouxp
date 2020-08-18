@@ -52,6 +52,7 @@ func (conn *ClientConn) Start() error {
 		return err
 	}
 
+	go conn.readRawDataLoop()
 	return nil
 }
 
@@ -129,7 +130,7 @@ func (conn *ClientConn) onRecvRawData(data []byte) {
 }
 
 func (conn *ClientConn) readRawDataLoop() {
-	buffer := make([]byte, gokcp.KCP_MTU_DEF)
+	buffer := make([]byte, MaxBufferSize)
 	for {
 		select {
 		case <-conn.closeC:
@@ -190,8 +191,5 @@ func NewClientConn(rwc net.PacketConn, addr net.Addr, handler ConnHandler) *Clie
 	conn.kcp.SetNoDelay(true, 10, 2, true)
 	conn.closed.Store(false)
 	conn.closer = conn
-
-	go conn.readRawDataLoop()
-
 	return conn
 }

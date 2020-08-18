@@ -32,7 +32,7 @@ func (s *Server) removeConnection(conn *ServerConn) {
 }
 
 func (s *Server) readRawDataLoop() {
-	buffer := make([]byte, gokcp.KCP_MTU_DEF)
+	buffer := make([]byte, MaxBufferSize)
 	for {
 		select {
 		case <-s.closeC:

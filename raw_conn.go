@@ -27,8 +27,22 @@ type RawConn struct {
 	locker      sync.Mutex
 }
 
+// SetWindow\SetMTU\SetUpdateInterval\SetUpdateInterval
+// MUST invoke before start!
 func (conn *RawConn) SetWindow(sndWnd, rcvWnd int) {
 	conn.kcp.SetWndSize(sndWnd, rcvWnd)
+}
+
+func (conn *RawConn) SetMTU(mtu int, reserved int) bool {
+	if mtu >= int(MaxBufferSize) {
+		return false
+	}
+
+	return conn.kcp.SetMTU(mtu, reserved)
+}
+
+func (conn *RawConn) SetUpdateInterval(interval int) {
+	conn.kcp.SetInterval(interval)
 }
 
 func (conn *RawConn) SetCryptoCodec(cryptoCodec CryptoCodec) {

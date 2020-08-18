@@ -36,7 +36,7 @@ func NowMS() int64 {
 }
 
 const (
-	MaxPacketSize = gokcp.KCP_MTU_DEF - uint32(PacketHeaderSize) - gokcp.KCP_OVERHEAD
 	// | header: 18bytes | convID: 4bytes | crypto public key: 8bytes |
 	handshakeBufferSize = PacketHeaderSize + 4 + 8
+	MaxBufferSize       = gokcp.KCP_MTU_DEF * 3
 )
