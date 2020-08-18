@@ -85,22 +85,17 @@ func (conn *RawConn) onKCPDataOutput(data []byte) {
 
 	conn.locker.Lock()
 	if conn.cryptoCodec != nil {
-		cryptoBuffer, err := conn.cryptoCodec.Encrypto(data)
+		cipherData, err := conn.cryptoCodec.Encrypto(data)
 		if err != nil {
 			conn.locker.Unlock()
 			conn.close(err)
 			return
 		}
 
-		data = cryptoBuffer
+		data = cipherData
 	}
 	conn.locker.Unlock()
-
-	_, err := conn.rwc.WriteTo(data, conn.addr)
-	if err != nil {
-		conn.close(err)
-		return
-	}
+	conn.write(data)
 }
 
 func (conn *RawConn) rwUpdate() bool {
