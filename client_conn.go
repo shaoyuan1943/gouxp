@@ -19,8 +19,8 @@ type CryptoKeys struct {
 type ClientConn struct {
 	RawConn
 	convID         uint32
-	lastActiveTime int64
 	cryptoKeys     CryptoKeys
+	lastActiveTime uint32
 }
 
 func (conn *ClientConn) close(err error) {
@@ -31,9 +31,9 @@ func (conn *ClientConn) close(err error) {
 	conn.locker.Lock()
 	defer conn.locker.Unlock()
 
+	conn.closed.Store(true)
 	close(conn.closeC)
 	conn.rwc.Close()
-	conn.closed.Store(true)
 	conn.handler.OnClosed(err)
 }
 
@@ -62,7 +62,6 @@ func (conn *ClientConn) Start() error {
 }
 
 func (conn *ClientConn) onHeartbeat(data []byte) {
-
 }
 
 func (conn *ClientConn) onHandshake(data []byte) {
@@ -75,7 +74,6 @@ func (conn *ClientConn) onHandshake(data []byte) {
 		conn.cryptoCodec.SetWriteNonce(nonce[:])
 	}
 
-	logger.Debugf("first heartbeat")
 	conn.heartbeat()
 	conn.handler.OnReady()
 
@@ -91,21 +89,34 @@ func (conn *ClientConn) onHandshake(data []byte) {
 			case <-conn.closeC:
 				return
 			case <-heartbeatTicker.C:
-				if NowMS()-conn.lastActiveTime >= 3*1000 {
+				if gokcp.SetupFromNowMS()-conn.lastActiveTime >= 3*1000 {
 					conn.close(ErrHeartbeatTimeout)
 					return
 				}
 
 				conn.heartbeat()
 			case <-updateTicker.C:
-				conn.locker.Lock()
-				conn.kcp.Update()
-				conn.locker.Unlock()
-			default:
-				conn.rwUpdate()
+				conn.update()
 			}
 		}
 	}()
+}
+
+func (conn *ClientConn) update() {
+	if conn.IsClosed() {
+		return
+	}
+
+	conn.locker.Lock()
+	err := conn.rwUpdate()
+	if err != nil {
+		conn.locker.Unlock()
+		conn.close(err)
+		return
+	}
+
+	conn.kcp.Update()
+	conn.locker.Unlock()
 }
 
 func (conn *ClientConn) onRecvRawData(data []byte) {
@@ -125,7 +136,6 @@ func (conn *ClientConn) onRecvRawData(data []byte) {
 	conn.locker.Unlock()
 
 	protoType := ProtoType(binary.LittleEndian.Uint16(data))
-	logger.Debugf("recv data, protocol type: %v", protoType)
 	data = data[protoSize:]
 	if protoType == protoTypeHandshake {
 		conn.onHandshake(data)
@@ -156,7 +166,7 @@ func (conn *ClientConn) readRawDataLoop() {
 				return
 			}
 
-			conn.lastActiveTime = NowMS()
+			conn.lastActiveTime = gokcp.SetupFromNowMS()
 			if n > 0 {
 				conn.onRecvRawData(buffer[:n])
 			}
@@ -169,9 +179,9 @@ func (conn *ClientConn) heartbeat() {
 		return
 	}
 
-	var heartbeatBuffer [PacketHeaderSize + 4]byte
+	var heartbeatBuffer [heartbeatBufferSize]byte
 	binary.LittleEndian.PutUint16(heartbeatBuffer[macSize:], uint16(protoTypeHeartbeat))
-	binary.LittleEndian.PutUint32(heartbeatBuffer[PacketHeaderSize:], uint32(NowMS()))
+	binary.LittleEndian.PutUint32(heartbeatBuffer[PacketHeaderSize:], gokcp.SetupFromNowMS())
 
 	conn.locker.Lock()
 	if conn.cryptoCodec != nil {
@@ -184,7 +194,10 @@ func (conn *ClientConn) heartbeat() {
 	}
 	conn.locker.Unlock()
 
-	conn.write(heartbeatBuffer[:])
+	err := conn.write(heartbeatBuffer[:])
+	if err != nil {
+		conn.close(err)
+	}
 }
 
 func NewClientConn(rwc net.PacketConn, addr net.Addr, handler ConnHandler) *ClientConn {

@@ -67,12 +67,14 @@ func NewTimerScheduler(parallelCount uint32) *TimerScheduler {
 func (ts *TimerScheduler) scheduled() {
 	var tasks TaskList
 	updateTimer := time.NewTimer(1 * time.Millisecond)
+	defer updateTimer.Stop()
+
 	for {
 		select {
 		case <-ts.ctx.Done():
 			return
 		case task := <-ts.taskC:
-			current := uint32(NowMS())
+			current := gokcp.SetupFromNowMS()
 			if current >= task.ts {
 				task.exec()
 			} else {
@@ -82,7 +84,7 @@ func (ts *TimerScheduler) scheduled() {
 				}
 			}
 		case <-updateTimer.C:
-			current := gokcp.CurrentMS()
+			current := gokcp.SetupFromNowMS()
 			for tasks.Len() > 0 {
 				if current >= tasks[0].ts {
 					v := heap.Pop(&tasks).(*Task)

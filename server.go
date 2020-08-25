@@ -92,7 +92,6 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) {
 	data = data[protoSize:]
 	convID := binary.LittleEndian.Uint32(data)
 	if convID == 0 {
-		logger.Debug("convID is 0")
 		return
 	}
 
@@ -133,14 +132,13 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) {
 	conn.kcp.SetNoDelay(true, 10, 2, true)
 	conn.closed.Store(false)
 	conn.closer = conn
+	conn.closeC = make(chan struct{})
 	conn.server = s
 	conn.onHandshaked()
 
 	s.locker.Lock()
 	defer s.locker.Unlock()
 	s.conns[addr.String()] = conn
-
-	logger.Debugf("OnNewConnection: %v", convID)
 }
 
 func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
@@ -178,7 +176,6 @@ func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
 	} else if protoType == protoTypeHeartbeat {
 		conn.onHeartbeat(data)
 	} else if protoType == protoTypeData {
-		logger.Debugf("recv kcp data")
 		conn.onKCPDataInput(data)
 	} else {
 		// TODO: unknown protocol type

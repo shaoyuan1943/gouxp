@@ -5,6 +5,7 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/shaoyuan1943/gokcp"
 )
@@ -15,16 +16,60 @@ type closer interface {
 
 type RawConn struct {
 	closer
-	kcp         *gokcp.KCP
-	addr        net.Addr
-	rwc         net.PacketConn
-	outPackets  [][]byte
-	packetsLen  int
-	cryptoCodec CryptoCodec
-	handler     ConnHandler
-	closeC      chan struct{}
-	closed      atomic.Value
-	locker      sync.Mutex
+	kcp            *gokcp.KCP
+	addr           net.Addr
+	rwc            net.PacketConn
+	outPackets     [][]byte
+	packetsLen     int
+	cryptoCodec    CryptoCodec
+	handler        ConnHandler
+	closeC         chan struct{}
+	closed         atomic.Value
+	locker         sync.Mutex
+	kcpStatus      *gokcp.KCPStatus
+	stopKCPStatusC chan struct{}
+}
+
+func (conn *RawConn) StartKCPStatus() {
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		conn.kcpStatus = &gokcp.KCPStatus{}
+		conn.stopKCPStatusC = make(chan struct{})
+
+		for {
+			select {
+			case <-conn.stopKCPStatusC:
+				return
+			case <-conn.closeC:
+				return
+			case <-ticker.C:
+				conn.locker.Lock()
+				conn.kcp.Snapshot(conn.kcpStatus)
+				conn.locker.Unlock()
+				logKCPStatus(conn.ID(), conn.kcpStatus)
+			}
+		}
+	}()
+}
+
+func (conn *RawConn) StopKCPStatus() {
+	if conn.stopKCPStatusC != nil {
+		close(conn.stopKCPStatusC)
+		conn.stopKCPStatusC = nil
+		conn.kcpStatus = nil
+	}
+}
+
+func (conn *RawConn) ID() uint32 {
+	return conn.kcp.ConvID()
+}
+
+func (conn *RawConn) SetConnHandler(handler ConnHandler) {
+	conn.locker.Lock()
+	defer conn.locker.Unlock()
+	conn.handler = handler
 }
 
 // SetWindow\SetMTU\SetUpdateInterval\SetUpdateInterval
@@ -59,15 +104,16 @@ func (conn *RawConn) Close() {
 	conn.close(nil)
 }
 
-func (conn *RawConn) write(data []byte) {
+func (conn *RawConn) write(data []byte) error {
 	_, err := conn.rwc.WriteTo(data, conn.addr)
-	if err != nil {
-		conn.close(err)
-		return
-	}
+	return err
 }
 
 func (conn *RawConn) Write(data []byte) (n int, err error) {
+	if conn.IsClosed() {
+		return
+	}
+
 	conn.locker.Lock()
 	defer conn.locker.Unlock()
 
@@ -95,29 +141,36 @@ func (conn *RawConn) onKCPDataInput(data []byte) {
 }
 
 func (conn *RawConn) onKCPDataOutput(data []byte) {
-	binary.LittleEndian.PutUint16(data[macSize:], uint16(protoTypeData))
+	if conn.IsClosed() {
+		return
+	}
 
-	conn.locker.Lock()
+	binary.LittleEndian.PutUint16(data[macSize:], uint16(protoTypeData))
 	if conn.cryptoCodec != nil {
 		cipherData, err := conn.cryptoCodec.Encrypto(data)
 		if err != nil {
-			conn.locker.Unlock()
-			conn.close(err)
+			go func() {
+				conn.close(err)
+			}()
+
 			return
 		}
 
 		data = cipherData
 	}
-	conn.locker.Unlock()
-	conn.write(data)
+
+	err := conn.write(data)
+	if err != nil {
+		go func() {
+			conn.close(err)
+		}()
+	}
 }
 
-func (conn *RawConn) rwUpdate() bool {
+func (conn *RawConn) rwUpdate() error {
 	// KCP.Send
 	waitSend := conn.kcp.WaitSend()
-	if waitSend < int(conn.kcp.SendWnd()) && waitSend < int(conn.kcp.RemoteWnd()) {
-		conn.locker.Lock()
-
+	if waitSend < int(conn.kcp.SendWnd()) && waitSend < int(conn.kcp.RemoteWnd()) && conn.packetsLen > 0 {
 		var outPackets [][]byte
 		outPackets = append(outPackets, conn.outPackets...)
 		conn.outPackets = conn.outPackets[:0]
@@ -126,48 +179,36 @@ func (conn *RawConn) rwUpdate() bool {
 		for _, packet := range outPackets {
 			err := conn.kcp.Send(packet)
 			if err != nil {
-				conn.locker.Unlock()
-				conn.close(err)
-				return false
+				return err
 			}
 		}
-
-		conn.locker.Unlock()
 	}
 
 	// KCP.Recv
-	conn.locker.Lock()
 	buffer := make([]byte, conn.kcp.Mtu())
 	if !conn.kcp.IsStreamMode() {
 		if size := conn.kcp.PeekSize(); size > 0 {
 			n, err := conn.kcp.Recv(buffer)
 			if err != nil {
-				conn.locker.Unlock()
-				conn.close(err)
-				return false
+				return err
 			}
 
 			conn.handler.OnNewDataComing(buffer[:n])
-			conn.locker.Unlock()
 		}
 	} else {
 		for {
 			if size := conn.kcp.PeekSize(); size > 0 {
 				n, err := conn.kcp.Recv(buffer)
 				if err != nil {
-					conn.locker.Unlock()
-					conn.close(err)
-					return false
+					return err
 				}
 
 				conn.handler.OnNewDataComing(buffer[:n])
-				conn.locker.Unlock()
 			} else {
-				conn.locker.Unlock()
 				break
 			}
 		}
 	}
 
-	return true
+	return nil
 }

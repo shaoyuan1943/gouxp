@@ -1,8 +1,6 @@
 package gouxp
 
 import (
-	"time"
-
 	"github.com/shaoyuan1943/gokcp"
 )
 
@@ -24,19 +22,22 @@ const (
 type ProtoType uint16
 
 const (
-	protoTypeHandshake ProtoType = 0x01
-	protoTypeHeartbeat ProtoType = 0x02
-	protoTypeData      ProtoType = 0x03
+	protoTypeHandshake ProtoType = 0x0C
+	protoTypeHeartbeat ProtoType = 0x0D
+	protoTypeData      ProtoType = 0x0E
 )
 
 var ConvID uint32 = 555
 
-func NowMS() int64 {
-	return time.Now().Unix()
-}
-
 const (
-	// | header: 18bytes | convID: 4bytes | crypto public key: 8bytes |
+	// | header: 18bytes | convID: 4bytes | crypto public key: 8bytes | server time(ms): uint32 |
 	handshakeBufferSize = PacketHeaderSize + 4 + 8
+	heartbeatBufferSize = PacketHeaderSize + 4
 	MaxBufferSize       = gokcp.KCP_MTU_DEF * 3
 )
+
+var logger Logger
+
+func SetDebugLogger(l Logger) {
+	logger = l
+}
