@@ -64,7 +64,7 @@ func (server *MyServer) OnNewClientComing(conn *gouxp.ServerConn) {
 	client.conn.SetConnHandler(client)
     server.allClients = append(server.allClients, client)
     // 开启KCP状态数据输出，需要注入Logger接口对象
-	//client.conn.StartKCPStatus()
+    //client.conn.StartKCPStatus()
 }
 
 func (server *MyServer) OnClosed(err error) {
