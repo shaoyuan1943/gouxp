@@ -1,5 +1,5 @@
 # gouxp
-基于[gokcp](https://github.com/shaoyuan1943/gokcp)开箱即用的可靠UDP传输协议开发框架。
+基于[gokcp](https://github.com/shaoyuan1943/gokcp)开箱即用的可靠UDP传输协议开发包。
 
 ### 如何使用
 客户端：
@@ -62,7 +62,7 @@ func (server *MyServer) OnNewClientComing(conn *gouxp.ServerConn) {
 	}
 
 	client.conn.SetConnHandler(client)
-    server.allClients = append(server.allClients, client)
+	server.allClients = append(server.allClients, client)
     // 开启KCP状态数据输出，需要注入Logger接口对象
     //client.conn.StartKCPStatus()
 }
