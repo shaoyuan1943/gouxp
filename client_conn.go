@@ -108,7 +108,7 @@ func (conn *ClientConn) update() {
 	}
 
 	conn.locker.Lock()
-	err := conn.rwUpdate()
+	err := conn.sendAndRecvFromKCP()
 	if err != nil {
 		conn.locker.Unlock()
 		conn.close(err)

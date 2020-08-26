@@ -178,7 +178,7 @@ func (conn *RawConn) onKCPDataOutput(data []byte) {
 	}
 }
 
-func (conn *RawConn) rwUpdate() error {
+func (conn *RawConn) sendAndRecvFromKCP() error {
 	// KCP.Send
 	waitSend := conn.kcp.WaitSend()
 	if waitSend < int(conn.kcp.SendWnd()) && waitSend < int(conn.kcp.RemoteWnd()) && conn.packetsLen > 0 {
