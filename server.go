@@ -13,14 +13,22 @@ import (
 )
 
 type Server struct {
-	rwc       net.PacketConn
-	handler   ServerHandler
-	conns     map[string]*ServerConn
-	closeC    chan struct{}
-	closed    atomic.Value
-	scheduler *TimerScheduler
-	locker    sync.Mutex
-	started   int64
+	rwc            net.PacketConn
+	handler        ServerHandler
+	conns          map[string]*ServerConn
+	closeC         chan struct{}
+	closed         atomic.Value
+	scheduler      *TimerScheduler
+	locker         sync.Mutex
+	started        int64
+	connCryptoType CryptoType
+}
+
+func (s *Server) UseCryptoCodec(cryptoType CryptoType) {
+	s.locker.Lock()
+	defer s.locker.Unlock()
+
+	s.connCryptoType = cryptoType
 }
 
 func (s *Server) waitForStart() {
@@ -71,8 +79,7 @@ func (s *Server) readRawDataLoop() {
 
 func (s *Server) onNewConnection(addr net.Addr, data []byte) {
 	conn := &ServerConn{}
-	s.handler.OnNewClientComing(conn)
-
+	conn.cryptoCodec = createCryptoCodec(s.connCryptoType)
 	if conn.cryptoCodec != nil {
 		plainData, err := conn.cryptoCodec.Decrypto(data)
 		if err != nil {
@@ -135,6 +142,7 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) {
 	conn.closeC = make(chan struct{})
 	conn.server = s
 	conn.onHandshaked()
+	s.handler.OnNewClientComing(conn)
 
 	s.locker.Lock()
 	defer s.locker.Unlock()

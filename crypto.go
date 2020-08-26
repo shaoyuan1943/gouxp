@@ -180,12 +180,11 @@ func (codec *Salsa20Crypto) Decrypto(src []byte) (dst []byte, err error) {
 type CryptoType byte
 
 const (
-	NoneCrypto CryptoType = iota
-	UseChacha20
-	UseSalsa20
+	UseChacha20 CryptoType = 0x05
+	UseSalsa20  CryptoType = 0x06
 )
 
-func CreateCryptoCodec(tp CryptoType) CryptoCodec {
+func createCryptoCodec(tp CryptoType) CryptoCodec {
 	if tp == UseChacha20 {
 		return NewChacha20poly1305CryptoCodec()
 	} else if tp == UseSalsa20 {

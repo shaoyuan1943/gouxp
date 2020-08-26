@@ -100,13 +100,6 @@ func (conn *RawConn) SetUpdateInterval(interval int) {
 	conn.kcp.SetInterval(interval)
 }
 
-func (conn *RawConn) SetCryptoCodec(cryptoCodec CryptoCodec) {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
-
-	conn.cryptoCodec = cryptoCodec
-}
-
 func (conn *RawConn) IsClosed() bool {
 	return conn.closed.Load().(bool) == true
 }

@@ -23,6 +23,13 @@ type ClientConn struct {
 	lastActiveTime uint32
 }
 
+func (conn *ClientConn) UseCryptoCodec(cryptoType CryptoType) {
+	conn.locker.Lock()
+	defer conn.locker.Unlock()
+
+	conn.cryptoCodec = createCryptoCodec(cryptoType)
+}
+
 func (conn *ClientConn) close(err error) {
 	if conn.IsClosed() {
 		return

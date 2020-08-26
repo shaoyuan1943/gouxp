@@ -5,9 +5,9 @@ import (
 )
 
 // gouxp packet format:
-// |---MAC---|---PROTO TYPE---|-----------------USER DATA-----------------|
-// |  16byte |     2byte      |                 ...                       |
-//                            |-------KCP HEADER-------|-------DATA-------|
+// |--MAC--|--PROTO TYPE--|-----------------USER DATA-----------------|
+// | 16byte|     2byte    |                 ...                       |
+//                        |-------KCP HEADER-------|-------DATA-------|
 
 // MAC: check data integrity
 
