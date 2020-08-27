@@ -156,7 +156,7 @@ func (conn *ClientConn) onRecvRawData(data []byte) {
 }
 
 func (conn *ClientConn) readRawDataLoop() {
-	buffer := make([]byte, MaxBufferSize)
+	buffer := make([]byte, MaxMTULimit)
 	for {
 		select {
 		case <-conn.closeC:

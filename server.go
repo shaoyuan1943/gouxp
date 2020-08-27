@@ -58,7 +58,7 @@ func (s *Server) removeConnection(conn *ServerConn) {
 func (s *Server) readRawDataLoop() {
 	s.waitForStart()
 
-	buffer := make([]byte, MaxBufferSize)
+	buffer := make([]byte, MaxMTULimit)
 	for {
 		select {
 		case <-s.closeC:
