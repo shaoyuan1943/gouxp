@@ -33,7 +33,7 @@ const (
 	// | header: 18bytes | convID: 4bytes | crypto public key: 8bytes | server time(ms): uint32 |
 	handshakeBufferSize = PacketHeaderSize + 4 + 8
 	heartbeatBufferSize = PacketHeaderSize + 4
-	MaxBufferSize       = gokcp.KCP_MTU_DEF * 3
+	MaxMTULimit         = gokcp.KCP_MTU_DEF * 2
 )
 
 var logger Logger

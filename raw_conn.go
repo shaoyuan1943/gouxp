@@ -74,7 +74,7 @@ func (conn *RawConn) SetConnHandler(handler ConnHandler) {
 }
 
 // SetWindow\SetMTU\SetUpdateInterval\SetUpdateInterval
-// MUST invoke before start!
+// MUST invoke before start in single goroutine!
 func (conn *RawConn) SetWindow(sndWnd, rcvWnd int) {
 	conn.locker.Lock()
 	defer conn.locker.Unlock()
@@ -86,7 +86,7 @@ func (conn *RawConn) SetMTU(mtu int, reserved int) bool {
 	conn.locker.Lock()
 	defer conn.locker.Unlock()
 
-	if mtu >= int(MaxBufferSize) {
+	if mtu >= int(MaxMTULimit) {
 		return false
 	}
 
