@@ -11,9 +11,9 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
-type CryptoCodec interface {
-	Encrypto(src []byte) (dst []byte, err error)
-	Decrypto(src []byte) (dst []byte, err error)
+type CryptCodec interface {
+	Encrypt(src []byte) (dst []byte, err error)
+	Decrypt(src []byte) (dst []byte, err error)
 	SetKey(key []byte)
 	SetReadNonce(nonce []byte)
 	SetWriteNonce(nonce []byte)
@@ -65,7 +65,7 @@ func (codec *Chacha20poly1305Crypto) SetWriteNonce(nonce []byte) {
 }
 
 // change data format |---MAC---|---DATA---| to |---DATA---|---MAC---|
-func (codec *Chacha20poly1305Crypto) Encrypto(src []byte) (dst []byte, err error) {
+func (codec *Chacha20poly1305Crypto) Encrypt(src []byte) (dst []byte, err error) {
 	copy(src, src[codec.aead.Overhead():len(src)])
 	nonce := codec.writeNonce.Load().(*CryptoNonce)
 	dst = codec.aead.Seal(src[:0], nonce.data, src[:len(src)-codec.aead.Overhead()], nil)
@@ -73,7 +73,7 @@ func (codec *Chacha20poly1305Crypto) Encrypto(src []byte) (dst []byte, err error
 	return
 }
 
-func (codec *Chacha20poly1305Crypto) Decrypto(src []byte) (dst []byte, err error) {
+func (codec *Chacha20poly1305Crypto) Decrypt(src []byte) (dst []byte, err error) {
 	nonce := codec.readNonce.Load().(*CryptoNonce)
 	dst, err = codec.aead.Open(src[:0], nonce.data, src, nil)
 	nonce.incr()
@@ -153,7 +153,7 @@ func NewSalsa20CryptoCodec() *Salsa20Crypto {
 	return codec
 }
 
-func (codec *Salsa20Crypto) Encrypto(src []byte) (dst []byte, err error) {
+func (codec *Salsa20Crypto) Encrypt(src []byte) (dst []byte, err error) {
 	nonce := codec.writeNonce.Load().(*CryptoNonce)
 	salsa20.XORKeyStream(src[macSize:], src[macSize:], nonce.data, &codec.key)
 
@@ -164,7 +164,7 @@ func (codec *Salsa20Crypto) Encrypto(src []byte) (dst []byte, err error) {
 	return src, nil
 }
 
-func (codec *Salsa20Crypto) Decrypto(src []byte) (dst []byte, err error) {
+func (codec *Salsa20Crypto) Decrypt(src []byte) (dst []byte, err error) {
 	nonce := codec.readNonce.Load().(*CryptoNonce)
 	salsa20.XORKeyStream(codec.dePoly1305Key[:], codec.dePoly1305Key[:], nonce.data, &codec.key)
 	copy(codec.deMacBuf[:], src[:macSize])
@@ -184,7 +184,7 @@ const (
 	UseSalsa20  CryptoType = 0x06
 )
 
-func createCryptoCodec(tp CryptoType) CryptoCodec {
+func createCryptoCodec(tp CryptoType) CryptCodec {
 	switch tp {
 	case UseChacha20:
 		return NewChacha20poly1305CryptoCodec()

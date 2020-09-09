@@ -18,7 +18,7 @@ type RawConn struct {
 	kcp            *gokcp.KCP
 	addr           net.Addr
 	rwc            net.PacketConn
-	cryptoCodec    CryptoCodec
+	cryptoCodec    CryptCodec
 	handler        ConnHandler
 	closeC         chan struct{}
 	closed         atomic.Value
@@ -31,9 +31,9 @@ type RawConn struct {
 	lastActiveTime uint32
 }
 
-func (conn *RawConn) encrypto(data []byte) (cipherData []byte, err error) {
+func (conn *RawConn) encrypt(data []byte) (cipherData []byte, err error) {
 	if conn.cryptoCodec != nil {
-		cipherData, err = conn.cryptoCodec.Encrypto(data)
+		cipherData, err = conn.cryptoCodec.Encrypt(data)
 		return
 	}
 
@@ -42,9 +42,9 @@ func (conn *RawConn) encrypto(data []byte) (cipherData []byte, err error) {
 	return
 }
 
-func (conn *RawConn) decrypto(cipherData []byte) (plaintextData []byte, err error) {
+func (conn *RawConn) decrypt(cipherData []byte) (plaintextData []byte, err error) {
 	if conn.cryptoCodec != nil {
-		plaintextData, err = conn.cryptoCodec.Decrypto(cipherData)
+		plaintextData, err = conn.cryptoCodec.Decrypt(cipherData)
 		return
 	}
 
@@ -68,7 +68,7 @@ func (conn *RawConn) onKCPDataInput(data []byte) error {
 func (conn *RawConn) onKCPDataOutput(data []byte) error {
 	binary.LittleEndian.PutUint16(data[macSize:], uint16(protoTypeData))
 
-	cipherData, err := conn.encrypto(data)
+	cipherData, err := conn.encrypt(data)
 	if err != nil {
 		return err
 	}

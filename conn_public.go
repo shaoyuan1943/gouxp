@@ -29,7 +29,7 @@ func (conn *ClientConn) Start() error {
 		binary.LittleEndian.PutUint64(handshakeBuffer[PacketHeaderSize+4:], conn.cryptoKeys.publicKey)
 	}
 
-	cipherData, err := conn.encrypto(handshakeBuffer[:])
+	cipherData, err := conn.encrypt(handshakeBuffer[:])
 	if err != nil {
 		return err
 	}

@@ -138,7 +138,7 @@ func (conn *ClientConn) onRecvRawData(data []byte) {
 		}
 	}()
 
-	plaintextData, err = conn.decrypto(data)
+	plaintextData, err = conn.decrypt(data)
 	if err != nil {
 		return
 	}

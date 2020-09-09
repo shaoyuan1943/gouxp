@@ -191,7 +191,7 @@ func NewFecDecoder(dataShards, parityShards, headerOffset, bufferSize int) FecDe
 	fecDecoder.parityShards = parityShards
 	decoder, err := reedsolomon.New(dataShards, parityShards)
 	if err != nil {
-		return nil
+		panic(fmt.Sprintf("init fec decoder err: %v", err))
 	}
 
 	fecDecoder.codec = decoder

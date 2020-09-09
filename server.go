@@ -95,7 +95,7 @@ func (s *Server) readRawDataLoop() {
 func (s *Server) onNewConnection(addr net.Addr, data []byte) (*ServerConn, error) {
 	conn := &ServerConn{}
 	conn.cryptoCodec = createCryptoCodec(s.connCryptoType)
-	plaintextData, err := conn.decrypto(data)
+	plaintextData, err := conn.decrypt(data)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) (*ServerConn, error
 		binary.LittleEndian.PutUint64(handshakeRspBuffer[PacketHeaderSize:], serverPublicKey)
 	}
 
-	cipherData, err := conn.encrypto(handshakeRspBuffer[:])
+	cipherData, err := conn.encrypt(handshakeRspBuffer[:])
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
 		}
 	}()
 
-	plaintextData, err = conn.decrypto(data)
+	plaintextData, err = conn.decrypt(data)
 	if err != nil {
 		return
 	}
