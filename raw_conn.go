@@ -5,7 +5,6 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/shaoyuan1943/gokcp"
 )
@@ -19,8 +18,6 @@ type RawConn struct {
 	kcp            *gokcp.KCP
 	addr           net.Addr
 	rwc            net.PacketConn
-	outPackets     [][]byte
-	packetsLen     int
 	cryptoCodec    CryptoCodec
 	handler        ConnHandler
 	closeC         chan struct{}
@@ -28,84 +25,32 @@ type RawConn struct {
 	locker         sync.Mutex
 	kcpStatus      *gokcp.KCPStatus
 	stopKCPStatusC chan struct{}
+	fecEncoder     FecEncoder
+	fecDecoder     FecDecoder
+	fecPacketQueue [][]byte
+	lastActiveTime uint32
 }
 
-func (conn *RawConn) StartKCPStatus() {
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-
-		conn.kcpStatus = &gokcp.KCPStatus{}
-		conn.stopKCPStatusC = make(chan struct{})
-
-		for {
-			select {
-			case <-conn.stopKCPStatusC:
-				return
-			case <-conn.closeC:
-				return
-			case <-ticker.C:
-				conn.locker.Lock()
-				conn.kcp.Snapshot(conn.kcpStatus)
-				conn.locker.Unlock()
-				logKCPStatus(conn.ID(), conn.kcpStatus)
-			}
-		}
-	}()
-}
-
-func (conn *RawConn) StopKCPStatus() {
-	if conn.stopKCPStatusC != nil {
-		close(conn.stopKCPStatusC)
-		conn.stopKCPStatusC = nil
-		conn.kcpStatus = nil
-	}
-}
-
-func (conn *RawConn) ID() uint32 {
-	return conn.kcp.ConvID()
-}
-
-func (conn *RawConn) SetConnHandler(handler ConnHandler) {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
-
-	conn.handler = handler
-}
-
-// SetWindow\SetMTU\SetUpdateInterval\SetUpdateInterval
-// MUST invoke before start in single goroutine!
-func (conn *RawConn) SetWindow(sndWnd, rcvWnd int) {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
-
-	conn.kcp.SetWndSize(sndWnd, rcvWnd)
-}
-
-func (conn *RawConn) SetMTU(mtu int, reserved int) bool {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
-
-	if mtu >= int(MaxMTULimit) {
-		return false
+func (conn *RawConn) encrypto(data []byte) (cipherData []byte, err error) {
+	if conn.cryptoCodec != nil {
+		cipherData, err = conn.cryptoCodec.Encrypto(data)
+		return
 	}
 
-	return conn.kcp.SetMTU(mtu, reserved)
+	cipherData = data
+	err = nil
+	return
 }
 
-func (conn *RawConn) SetUpdateInterval(interval int) {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
+func (conn *RawConn) decrypto(cipherData []byte) (plaintextData []byte, err error) {
+	if conn.cryptoCodec != nil {
+		plaintextData, err = conn.cryptoCodec.Decrypto(cipherData)
+		return
+	}
 
-	conn.kcp.SetInterval(interval)
-}
-
-func (conn *RawConn) IsClosed() bool {
-	return conn.closed.Load().(bool) == true
-}
-
-func (conn *RawConn) Close() {
-	conn.close(nil)
+	plaintextData = cipherData[macSize:]
+	err = nil
+	return
 }
 
 func (conn *RawConn) write(data []byte) error {
@@ -113,81 +58,30 @@ func (conn *RawConn) write(data []byte) error {
 	return err
 }
 
-func (conn *RawConn) Write(data []byte) (n int, err error) {
-	if conn.IsClosed() {
-		return
-	}
-
+func (conn *RawConn) onKCPDataInput(data []byte) error {
 	conn.locker.Lock()
 	defer conn.locker.Unlock()
 
-	n = len(data)
-	if conn.packetsLen+n > 65535 { // 64k
-		n = 0
-		err = ErrTryAgain
-		return
-	}
-
-	conn.outPackets = append(conn.outPackets, data)
-	conn.packetsLen += n
-	return n, nil
+	return conn.kcp.Input(data)
 }
 
-func (conn *RawConn) onKCPDataInput(data []byte) {
-	conn.locker.Lock()
-	err := conn.kcp.Input(data)
-	if err != nil {
-		conn.locker.Unlock()
-		conn.close(err)
-		return
-	}
-	conn.locker.Unlock()
-}
-
-func (conn *RawConn) onKCPDataOutput(data []byte) {
-	if conn.IsClosed() {
-		return
-	}
-
+func (conn *RawConn) onKCPDataOutput(data []byte) error {
 	binary.LittleEndian.PutUint16(data[macSize:], uint16(protoTypeData))
-	if conn.cryptoCodec != nil {
-		cipherData, err := conn.cryptoCodec.Encrypto(data)
-		if err != nil {
-			go func() {
-				conn.close(err)
-			}()
 
-			return
-		}
-
-		data = cipherData
-	}
-
-	err := conn.write(data)
+	cipherData, err := conn.encrypto(data)
 	if err != nil {
-		go func() {
-			conn.close(err)
-		}()
+		return err
 	}
+
+	err = conn.write(cipherData)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (conn *RawConn) sendAndRecvFromKCP() error {
-	// KCP.Send
-	waitSend := conn.kcp.WaitSend()
-	if waitSend < int(conn.kcp.SendWnd()) && waitSend < int(conn.kcp.RemoteWnd()) && conn.packetsLen > 0 {
-		var outPackets [][]byte
-		outPackets = append(outPackets, conn.outPackets...)
-		conn.outPackets = conn.outPackets[:0]
-		conn.packetsLen = 0
-
-		for _, packet := range outPackets {
-			err := conn.kcp.Send(packet)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
+func (conn *RawConn) recvFromKCP() error {
 	// KCP.Recv
 	buffer := make([]byte, conn.kcp.Mtu())
 	if !conn.kcp.IsStreamMode() {

@@ -1,6 +1,8 @@
 package gouxp
 
 import (
+	"encoding/binary"
+
 	"github.com/shaoyuan1943/gokcp"
 )
 
@@ -27,10 +29,25 @@ const (
 	protoTypeData      ProtoType = 0x0E
 )
 
+type PlaintextData []byte
+
+func (p PlaintextData) Type() ProtoType {
+	return ProtoType(binary.LittleEndian.Uint16(p))
+}
+
+func (p PlaintextData) Data() []byte {
+	return p[protoSize:]
+}
+
 var ConvID uint32 = 555
 
 const (
-	// | header: 18bytes | convID: 4bytes | crypto public key: 8bytes | server time(ms): uint32 |
+	FECDataShards   = 3
+	FECParityShards = 2
+)
+
+const (
+	// | header: 18bytes | convID: 4bytes | crypto public key: 8bytes |
 	handshakeBufferSize = PacketHeaderSize + 4 + 8
 	heartbeatBufferSize = PacketHeaderSize + 4
 	MaxMTULimit         = gokcp.KCP_MTU_DEF * 2

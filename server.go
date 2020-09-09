@@ -46,6 +46,20 @@ func (s *Server) waitForStart() {
 	}
 }
 
+func (s *Server) getConnection(addr net.Addr) *ServerConn {
+	s.locker.Lock()
+	defer s.locker.Unlock()
+
+	return s.conns[addr.String()]
+}
+
+func (s *Server) addConnection(addr net.Addr, conn *ServerConn) {
+	s.locker.Lock()
+	defer s.locker.Unlock()
+
+	s.conns[addr.String()] = conn
+}
+
 func (s *Server) removeConnection(conn *ServerConn) {
 	s.locker.Lock()
 	defer s.locker.Unlock()
@@ -77,53 +91,48 @@ func (s *Server) readRawDataLoop() {
 	}
 }
 
-func (s *Server) onNewConnection(addr net.Addr, data []byte) {
+func (s *Server) onNewConnection(addr net.Addr, data []byte) (*ServerConn, error) {
 	conn := &ServerConn{}
 	conn.cryptoCodec = createCryptoCodec(s.connCryptoType)
-	if conn.cryptoCodec != nil {
-		plainData, err := conn.cryptoCodec.Decrypto(data)
-		if err != nil {
-			return
-		}
-
-		data = plainData
-	} else {
-		data = data[macSize:]
+	plaintextData, err := conn.decrypto(data)
+	if err != nil {
+		return nil, err
 	}
 
-	protoType := ProtoType(binary.LittleEndian.Uint16(data))
+	protoType := PlaintextData(plaintextData).Type()
 	if protoType != protoTypeHandshake {
-		return
+		return nil, ErrUnknownProtocolType
 	}
 
-	data = data[protoSize:]
-	convID := binary.LittleEndian.Uint32(data)
+	logicData := PlaintextData(plaintextData).Data()
+	convID := binary.LittleEndian.Uint32(logicData)
 	if convID == 0 {
-		return
+		return nil, gokcp.ErrDataInvalid
 	}
 
 	var nonce [8]byte
 	var handshakeRspBuffer [PacketHeaderSize + 8]byte
 	binary.LittleEndian.PutUint16(handshakeRspBuffer[macSize:], uint16(protoTypeHandshake))
 	if conn.cryptoCodec != nil {
-		clientPublicKey := binary.LittleEndian.Uint64(data[2:])
+		clientPublicKey := binary.LittleEndian.Uint64(logicData[4:])
 		if clientPublicKey == 0 {
-			return
+			return nil, gokcp.ErrDataInvalid
 		}
 
 		serverPrivateKey, serverPublicKey := dh64.KeyPair()
 		num := dh64.Secret(serverPrivateKey, clientPublicKey)
 		binary.LittleEndian.PutUint64(nonce[:], num)
 		binary.LittleEndian.PutUint64(handshakeRspBuffer[PacketHeaderSize:], serverPublicKey)
-		_, err := conn.cryptoCodec.Encrypto(handshakeRspBuffer[:])
-		if err != nil {
-			return
-		}
 	}
 
-	_, err := s.rwc.WriteTo(handshakeRspBuffer[:], addr)
+	cipherData, err := conn.encrypto(handshakeRspBuffer[:])
 	if err != nil {
-		return
+		return nil, err
+	}
+
+	_, err = s.rwc.WriteTo(cipherData, addr)
+	if err != nil {
+		return nil, err
 	}
 
 	if conn.cryptoCodec != nil {
@@ -144,48 +153,47 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) {
 	conn.onHandshaked()
 	s.handler.OnNewClientComing(conn)
 
-	s.locker.Lock()
-	defer s.locker.Unlock()
-	s.conns[addr.String()] = conn
+	return conn, nil
 }
 
 func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
-	s.locker.Lock()
-	conn, ok := s.conns[addr.String()]
-	if !ok {
-		s.locker.Unlock()
-		s.onNewConnection(addr, data)
-		return
-	}
-	s.locker.Unlock()
-
-	conn.locker.Lock()
-	if conn.cryptoCodec != nil {
-		plainData, err := conn.cryptoCodec.Decrypto(data)
+	conn := s.getConnection(addr)
+	if conn == nil {
+		newConn, err := s.onNewConnection(addr, data)
 		if err != nil {
-			conn.locker.Unlock()
-			conn.close(err)
 			return
 		}
 
-		data = plainData
-	} else {
-		data = data[macSize:]
+		s.addConnection(addr, newConn)
+		return
 	}
-	conn.locker.Unlock()
 
-	protoType := ProtoType(binary.LittleEndian.Uint16(data))
-	data = data[protoSize:]
-	if protoType == protoTypeHandshake {
-		// TODO: if connection is exist but client send handshake protocol, how to handle it ?
-		// 1. make new ServerConn directly
-		// 2. reuse exist connection and unsend data
-		s.onNewConnection(addr, data)
-	} else if protoType == protoTypeHeartbeat {
-		conn.onHeartbeat(data)
-	} else if protoType == protoTypeData {
-		conn.onKCPDataInput(data)
-	} else {
+	atomic.StoreUint32(&conn.lastActiveTime, gokcp.SetupFromNowMS())
+
+	var plaintextData []byte
+	var err error
+	defer func() {
+		if err != nil {
+			conn.close(err)
+		}
+	}()
+
+	plaintextData, err = conn.decrypto(data)
+	if err != nil {
+		return
+	}
+
+	protoType := PlaintextData(plaintextData).Type()
+	logicData := PlaintextData(plaintextData).Data()
+	switch protoType {
+	case protoTypeHandshake:
+		// TODO: if connection is exist but client send handshake protocol, WHY?
+		panic("exist connection recv handshake protocol")
+	case protoTypeHeartbeat:
+		err = conn.onHeartbeat(logicData)
+	case protoTypeData:
+		err = conn.onKCPDataInput(logicData)
+	default:
 		// TODO: unknown protocol type
 	}
 }

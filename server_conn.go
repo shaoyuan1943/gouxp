@@ -2,6 +2,7 @@ package gouxp
 
 import (
 	"encoding/binary"
+	"sync/atomic"
 	"time"
 
 	"github.com/shaoyuan1943/gokcp"
@@ -9,9 +10,8 @@ import (
 
 type ServerConn struct {
 	RawConn
-	convID            uint32
-	server            *Server
-	lastHeartbeatTime uint32
+	convID uint32
+	server *Server
 }
 
 func (conn *ServerConn) onHandshaked() {
@@ -24,13 +24,10 @@ func (conn *ServerConn) onHandshaked() {
 			case <-conn.closeC:
 				return
 			case <-checkHeartbeatTicker.C:
-				conn.locker.Lock()
-				if gokcp.SetupFromNowMS()-conn.lastHeartbeatTime > 3*1000 {
-					conn.locker.Unlock()
-					conn.close(ErrHeartbeatTimeout)
+				if gokcp.SetupFromNowMS()-atomic.LoadUint32(&conn.lastActiveTime) > 3*1000 {
+					//conn.close(ErrHeartbeatTimeout)
 					return
 				}
-				conn.locker.Unlock()
 			}
 		}
 	}()
@@ -43,43 +40,37 @@ func (conn *ServerConn) update() {
 		return
 	}
 
-	conn.locker.Lock()
-	err := conn.sendAndRecvFromKCP()
-	if err != nil {
+	var err error
+	defer func() {
 		conn.locker.Unlock()
-		conn.close(err)
+		if err != nil {
+			conn.close(err)
+		}
+	}()
+
+	conn.locker.Lock()
+	err = conn.recvFromKCP()
+	if err != nil {
 		return
 	}
 
-	conn.kcp.Update()
+	err = conn.kcp.Update()
+	if err != nil {
+		return
+	}
+
 	nextTime := conn.kcp.Check()
-	conn.locker.Unlock()
 	conn.server.scheduler.PushTask(conn.update, nextTime)
 }
 
 // response
-func (conn *ServerConn) onHeartbeat(data []byte) {
-	conn.lastHeartbeatTime = gokcp.SetupFromNowMS()
-
+func (conn *ServerConn) onHeartbeat(data []byte) error {
 	var heartbeatRspBuffer [PacketHeaderSize + 4]byte
 	binary.LittleEndian.PutUint16(heartbeatRspBuffer[macSize:], uint16(protoTypeHeartbeat))
 	binary.LittleEndian.PutUint32(heartbeatRspBuffer[macSize+2:], gokcp.SetupFromNowMS())
 
-	conn.locker.Lock()
-	if conn.cryptoCodec != nil {
-		_, err := conn.cryptoCodec.Encrypto(heartbeatRspBuffer[:])
-		if err != nil {
-			conn.locker.Unlock()
-			conn.close(err)
-			return
-		}
-	}
-	conn.locker.Unlock()
-
-	err := conn.write(heartbeatRspBuffer[:])
-	if err != nil {
-		conn.close(err)
-	}
+	_, err := conn.Write(heartbeatRspBuffer[:])
+	return err
 }
 
 func (conn *ServerConn) close(err error) {

@@ -1,8 +1,13 @@
 package gouxp
 
 import (
+	"encoding/binary"
 	"testing"
+
+	"github.com/shaoyuan1943/gouxp/dh64"
 )
+
+var macLen = 16
 
 func checkCrypto(t *testing.T, codec CryptoCodec, data []byte) bool {
 	encryptoed, err := codec.Encrypto(data)
@@ -76,7 +81,7 @@ func testCodec(t *testing.T, codec CryptoCodec) {
 }
 
 func TestCryptoCodec(t *testing.T) {
-	codec := CreateCryptoCodec(UseSalsa20)
+	codec := createCryptoCodec(UseSalsa20)
 	testCodec(t, codec)
 }
 
@@ -105,6 +110,97 @@ func TestErrorCrypto(t *testing.T) {
 	//salsa20Codec := CreateCryptoCodec(UseSalsa20)
 	//testErrorCrypto(t, salsa20Codec)
 
-	chacha20Codec := CreateCryptoCodec(UseChacha20)
+	chacha20Codec := createCryptoCodec(UseChacha20)
 	testErrorCrypto(t, chacha20Codec)
+}
+
+func TestTwoCodec(t *testing.T) {
+	codec1 := createCryptoCodec(UseSalsa20)
+	codec2 := createCryptoCodec(UseSalsa20)
+
+	data := []byte("sdnajfhnoui324-hjfo[eqwihui324hf835498248fbjwadefbrwqekf-30ef=-[]f[]sdfsdfbu43i74fgs[w0re")
+	testData := make([]byte, len(data)+int(macLen))
+	copy(testData[macLen:], data)
+
+	t.Logf("testData: %v", testData)
+	cipherData, err := codec1.Encrypto(testData)
+	if err != nil {
+		t.Fatalf("encrypto err: %v", err)
+		return
+	}
+	t.Logf("cipherData: %v", cipherData)
+	plaintextData, err := codec2.Decrypto(cipherData)
+	if err != nil {
+		t.Fatalf("Decrypto err: %v", err)
+		return
+	}
+
+	t.Logf("plaintextData: %v", plaintextData)
+}
+
+func TestClientServerCodec(t *testing.T) {
+	clientCodec := createCryptoCodec(UseSalsa20)
+	privateKey, publicKey := dh64.KeyPair()
+	clientData := make([]byte, macLen+8)
+	binary.LittleEndian.PutUint64(clientData[macLen:], publicKey)
+	clientCipherData, err := clientCodec.Encrypto(clientData)
+	if err != nil {
+		t.Fatalf("clientCodec.Encrypto err: %v", err)
+		return
+	}
+
+	serverCodec := createCryptoCodec(UseSalsa20)
+	plaintextData, err := serverCodec.Decrypto(clientCipherData)
+	if err != nil {
+		t.Fatalf("serverCodec.Decrypto err: %v", err)
+		return
+	}
+
+	clientPublicKey := binary.LittleEndian.Uint64(plaintextData)
+	serverPrivateKey, serverPublicKey := dh64.KeyPair()
+	serverNum := dh64.Secret(serverPrivateKey, clientPublicKey)
+	var serverNonce [8]byte
+	binary.LittleEndian.PutUint64(serverNonce[:], serverNum)
+
+	serverData := make([]byte, macLen+16)
+	binary.LittleEndian.PutUint64(serverData[macLen:], serverPublicKey)
+	serverCipherData, err := serverCodec.Encrypto(serverData)
+	if err != nil {
+		t.Fatalf("serverCodec.Encrypto err: %v", err)
+		return
+	}
+
+	serverCodec.SetReadNonce(serverNonce[:])
+	serverCodec.SetWriteNonce(serverNonce[:])
+
+	serverPlaintextData, err := clientCodec.Decrypto(serverCipherData)
+	if err != nil {
+		t.Fatalf("clientCodec.Decrypto err: %v", err)
+		return
+	}
+
+	key := binary.LittleEndian.Uint64(serverPlaintextData)
+	clientNum := dh64.Secret(privateKey, key)
+	var clientNonce [8]byte
+	binary.LittleEndian.PutUint64(clientNonce[:], clientNum)
+	clientCodec.SetWriteNonce(clientNonce[:])
+	clientCodec.SetWriteNonce(clientNonce[:])
+
+	data := []byte("sdnajfhnoui324-hjfo[eqwihui324")
+	testData := make([]byte, len(data)+int(macLen))
+	copy(testData[macLen:], data)
+
+	cipherData, err := clientCodec.Encrypto(testData)
+	if err != nil {
+		t.Fatalf("clientCodec.Encrypto err: %v", err)
+		return
+	}
+
+	orgData, err := serverCodec.Decrypto(cipherData)
+	if err != nil {
+		t.Fatalf("serverCodec.Decrypto err: %v", err)
+		return
+	}
+
+	t.Logf("plaintextData: %v", string(orgData))
 }

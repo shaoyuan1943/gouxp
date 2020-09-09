@@ -52,7 +52,7 @@ func (codec *Chacha20poly1305Crypto) SetKey(key []byte) {
 
 func (codec *Chacha20poly1305Crypto) setNonce(nonce []byte, nonceValue *atomic.Value) {
 	cryptoNonce := nonceValue.Load().(*CryptoNonce)
-	copy(cryptoNonce.data[:0], nonce)
+	copy(cryptoNonce.data[:], nonce)
 	nonceValue.Store(cryptoNonce)
 }
 
@@ -129,7 +129,7 @@ func (codec *Salsa20Crypto) setNonce(nonce []byte, nonceValue *atomic.Value) {
 	}
 
 	cryptoNonce := nonceValue.Load().(*CryptoNonce)
-	copy(cryptoNonce.data[:0], nonce)
+	copy(cryptoNonce.data[:], nonce)
 	nonceValue.Store(cryptoNonce)
 }
 
@@ -185,11 +185,12 @@ const (
 )
 
 func createCryptoCodec(tp CryptoType) CryptoCodec {
-	if tp == UseChacha20 {
+	switch tp {
+	case UseChacha20:
 		return NewChacha20poly1305CryptoCodec()
-	} else if tp == UseSalsa20 {
+	case UseSalsa20:
 		return NewSalsa20CryptoCodec()
-	} else {
+	default:
 		return nil
 	}
 }

@@ -18,7 +18,7 @@ const (
 )
 
 var (
-	ErrUnknowFecCmd   = errors.New("unknow fec cmd")
+	ErrUnknownFecCmd  = errors.New("unknown fec cmd")
 	ErrFecDataTimeout = errors.New("fec data timeout")
 )
 
@@ -43,15 +43,15 @@ func putBuffer(buffer []byte) {
 	}
 }
 
-type Encoder interface {
+type FecEncoder interface {
 	Encode(rawData []byte) (fecData [][]byte, err error)
 }
 
-type Decoder interface {
+type FecDecoder interface {
 	Decode(fecData []byte, ts uint32) (rawData [][]byte, err error)
 }
 
-type FecEncoder struct {
+type FecCodecEncoder struct {
 	codec         reedsolomon.Encoder
 	q             [][]byte
 	insertIndex   int
@@ -66,8 +66,8 @@ type FecEncoder struct {
 	bufferSize    int
 }
 
-func NewFecEncoder(dataShards, parityShards, headerOffset, bufferSize int) Encoder {
-	fecEncoder := &FecEncoder{}
+func NewFecEncoder(dataShards, parityShards, headerOffset, bufferSize int) FecEncoder {
+	fecEncoder := &FecCodecEncoder{}
 	fecEncoder.shards = dataShards + parityShards
 	fecEncoder.dataShards = dataShards
 	fecEncoder.parityShards = parityShards
@@ -89,11 +89,15 @@ func NewFecEncoder(dataShards, parityShards, headerOffset, bufferSize int) Encod
 	return fecEncoder
 }
 
-func (f *FecEncoder) HeaderOffset() int {
+func (f *FecCodecEncoder) HeaderOffset() int {
 	return f.offset + fecHeaderSize
 }
 
-func (f *FecEncoder) Encode(rawData []byte) (fecData [][]byte, err error) {
+func (f *FecCodecEncoder) DataShardsSize() int {
+	return f.insertIndex
+}
+
+func (f *FecCodecEncoder) Encode(rawData []byte) (fecData [][]byte, err error) {
 	if rawData == nil || len(rawData) == 0 || len(rawData) > f.bufferSize {
 		panic("raw data length invalid")
 	}
@@ -147,13 +151,13 @@ func (f *FecEncoder) Encode(rawData []byte) (fecData [][]byte, err error) {
 	return
 }
 
-func (f *FecEncoder) markData(data []byte) {
+func (f *FecCodecEncoder) markData(data []byte) {
 	binary.LittleEndian.PutUint32(data[:4], uint32(f.nextSN))
 	binary.LittleEndian.PutUint16(data[4:fecHeaderSize], uint16(fecCmdData))
 	f.nextSN++
 }
 
-func (f *FecEncoder) markParity(data []byte) {
+func (f *FecCodecEncoder) markParity(data []byte) {
 	binary.LittleEndian.PutUint32(data[:4], uint32(f.nextSN))
 	binary.LittleEndian.PutUint16(data[4:fecHeaderSize], uint16(fecCmdParity))
 	f.nextSN++
@@ -169,7 +173,7 @@ type DataShards struct {
 	shardsCount   int
 }
 
-type FecDecoder struct {
+type FecCodecDecoder struct {
 	codec        reedsolomon.Encoder
 	shards       int
 	dataShards   int
@@ -180,8 +184,8 @@ type FecDecoder struct {
 	bufferSize   int
 }
 
-func NewFecDecoder(dataShards, parityShards, headerOffset, bufferSize int) Decoder {
-	fecDecoder := &FecDecoder{}
+func NewFecDecoder(dataShards, parityShards, headerOffset, bufferSize int) FecDecoder {
+	fecDecoder := &FecCodecDecoder{}
 	fecDecoder.shards = dataShards + parityShards
 	fecDecoder.dataShards = dataShards
 	fecDecoder.parityShards = parityShards
@@ -198,11 +202,11 @@ func NewFecDecoder(dataShards, parityShards, headerOffset, bufferSize int) Decod
 	return fecDecoder
 }
 
-func (f *FecDecoder) HeaderOffset() int {
+func (f *FecCodecDecoder) HeaderOffset() int {
 	return f.offset + fecHeaderSize
 }
 
-func (f *FecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, err error) {
+func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, err error) {
 	if fecData == nil || len(fecData) == 0 || len(fecData) > f.bufferSize {
 		panic("raw data length invalid")
 	}
@@ -266,7 +270,7 @@ func (f *FecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, err e
 					} else if cmd == fecCmdParity {
 						codec[(int(sn) - startRange)] = d[f.HeaderOffset():len(d)]
 					} else {
-						err = ErrUnknowFecCmd
+						err = ErrUnknownFecCmd
 						return
 					}
 				}
@@ -296,7 +300,7 @@ func (f *FecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, err e
 	return
 }
 
-func (f *FecDecoder) delShards(sumIndex int) {
+func (f *FecCodecDecoder) delShards(sumIndex int) {
 	ds, ok := f.rawDatas[sumIndex]
 	if !ok {
 		return
