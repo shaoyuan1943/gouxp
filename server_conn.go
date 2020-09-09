@@ -16,16 +16,16 @@ type ServerConn struct {
 
 func (conn *ServerConn) onHandshaked() {
 	go func() {
-		checkHeartbeatTicker := time.NewTicker(2 * time.Second)
-		defer checkHeartbeatTicker.Stop()
+		heartbeatTicker := time.NewTicker(2 * time.Second)
+		defer heartbeatTicker.Stop()
 
 		for {
 			select {
 			case <-conn.closeC:
 				return
-			case <-checkHeartbeatTicker.C:
+			case <-heartbeatTicker.C:
 				if gokcp.SetupFromNowMS()-atomic.LoadUint32(&conn.lastActiveTime) > 3*1000 {
-					//conn.close(ErrHeartbeatTimeout)
+					conn.close(ErrHeartbeatTimeout)
 					return
 				}
 			}
