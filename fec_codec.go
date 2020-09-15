@@ -6,20 +6,25 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/shaoyuan1943/gokcp"
+
 	"github.com/klauspost/reedsolomon"
 )
 
 const (
-	fecCmdData     = 0x0F
-	fecCmdParity   = 0x0E
-	fecHeaderSize  = 6
-	fecResultSize  = 50
-	fecDataTimeout = 10000
+	fecCmdData      = 0x0F
+	fecCmdParity    = 0x0E
+	fecResultSize   = 50
+	fecDataTimeout  = 10000
+	fecHeaderSize   = 6
+	fecLengthSize   = 2
+	fecHeaderOffset = fecHeaderSize + fecLengthSize
 )
 
 var (
 	ErrUnknownFecCmd  = errors.New("unknown fec cmd")
 	ErrFecDataTimeout = errors.New("fec data timeout")
+	ErrNoFecData      = errors.New("no fec data")
 )
 
 var fecBufferPool sync.Pool
@@ -43,36 +48,28 @@ func putBuffer(buffer []byte) {
 	}
 }
 
-type FecEncoder interface {
-	Encode(rawData []byte) (fecData [][]byte, err error)
-}
-
-type FecDecoder interface {
-	Decode(fecData []byte, ts uint32) (rawData [][]byte, err error)
-}
-
 type FecCodecEncoder struct {
-	codec         reedsolomon.Encoder
-	q             [][]byte
-	insertIndex   int
-	nextSN        int32
-	shards        int
-	dataShards    int
-	parityShards  int
-	maxRawDataLen int
-	zero          []byte
-	codecData     [][]byte
-	offset        int
-	bufferSize    int
+	codec          reedsolomon.Encoder
+	q              [][]byte
+	insertIndex    int
+	nextSN         int32
+	shards         int
+	dataShards     int
+	parityShards   int
+	maxRawDataLen  int
+	zero           []byte
+	codecData      [][]byte
+	offset         int
+	bufferSize     int
+	lastInsertTime uint32
 }
 
-func NewFecEncoder(dataShards, parityShards, headerOffset, bufferSize int) FecEncoder {
+func NewFecEncoder(dataShards, parityShards, bufferSize int) *FecCodecEncoder {
 	fecEncoder := &FecCodecEncoder{}
 	fecEncoder.shards = dataShards + parityShards
 	fecEncoder.dataShards = dataShards
 	fecEncoder.parityShards = parityShards
-	fecEncoder.offset = headerOffset
-	encoder, err := reedsolomon.New(int(fecEncoder.dataShards), int(fecEncoder.parityShards))
+	encoder, err := reedsolomon.New(fecEncoder.dataShards, fecEncoder.parityShards)
 	if err != nil {
 		panic(fmt.Sprintf("init fec encoder: %v", err))
 	}
@@ -84,13 +81,10 @@ func NewFecEncoder(dataShards, parityShards, headerOffset, bufferSize int) FecEn
 	fecEncoder.q = make([][]byte, fecEncoder.shards)
 	for i := 0; i < fecEncoder.shards; i++ {
 		fecEncoder.q[i] = make([]byte, bufferSize)
+		fecEncoder.q[i] = fecEncoder.q[i][:0]
 	}
 
 	return fecEncoder
-}
-
-func (f *FecCodecEncoder) HeaderOffset() int {
-	return f.offset + fecHeaderSize
 }
 
 func (f *FecCodecEncoder) DataShardsSize() int {
@@ -103,26 +97,29 @@ func (f *FecCodecEncoder) Encode(rawData []byte) (fecData [][]byte, err error) {
 	}
 
 	l := len(rawData)
-	f.q[f.insertIndex] = f.q[f.insertIndex][:l]
-	copy(f.q[f.insertIndex], rawData)
+	f.q[f.insertIndex] = f.q[f.insertIndex][:fecHeaderOffset+l]
+	copy(f.q[f.insertIndex][fecHeaderOffset:], rawData)
+	binary.LittleEndian.PutUint16(f.q[f.insertIndex][fecHeaderSize:], uint16(l))
+	f.lastInsertTime = gokcp.SetupFromNowMS()
 
 	if l > f.maxRawDataLen {
 		f.maxRawDataLen = l
 	}
 
-	if (f.insertIndex + 1) == int(f.dataShards) {
+	if (f.insertIndex + 1) == f.dataShards {
+		maxLen := f.maxRawDataLen + fecHeaderOffset
 		for i := 0; i < (f.dataShards + f.parityShards); i++ {
 			if i >= f.dataShards {
-				f.q[i] = f.q[i][:f.maxRawDataLen]
-				f.codecData[i] = f.q[i][f.HeaderOffset():f.maxRawDataLen]
+				f.q[i] = f.q[i][:maxLen]
+				f.codecData[i] = f.q[i][fecHeaderOffset:maxLen]
 			} else {
 				orgLen := len(f.q[i])
-				if orgLen < f.maxRawDataLen {
-					f.q[i] = f.q[i][:f.maxRawDataLen]
-					copy(f.q[i][orgLen:f.maxRawDataLen], f.zero)
+				if orgLen < maxLen {
+					f.q[i] = f.q[i][:maxLen]
+					copy(f.q[i][orgLen:maxLen], f.zero)
 				}
 
-				f.codecData[i] = f.q[i][f.HeaderOffset():f.maxRawDataLen]
+				f.codecData[i] = f.q[i][fecHeaderOffset:maxLen]
 			}
 		}
 
@@ -184,7 +181,7 @@ type FecCodecDecoder struct {
 	bufferSize   int
 }
 
-func NewFecDecoder(dataShards, parityShards, headerOffset, bufferSize int) FecDecoder {
+func NewFecDecoder(dataShards, parityShards, bufferSize int) *FecCodecDecoder {
 	fecDecoder := &FecCodecDecoder{}
 	fecDecoder.shards = dataShards + parityShards
 	fecDecoder.dataShards = dataShards
@@ -197,13 +194,8 @@ func NewFecDecoder(dataShards, parityShards, headerOffset, bufferSize int) FecDe
 	fecDecoder.codec = decoder
 	fecDecoder.rawDatas = make(map[int]DataShards)
 	fecDecoder.result = make([][]byte, fecResultSize)
-	fecDecoder.offset = headerOffset
 	fecDecoder.bufferSize = bufferSize
 	return fecDecoder
-}
-
-func (f *FecCodecDecoder) HeaderOffset() int {
-	return f.offset + fecHeaderSize
 }
 
 func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, err error) {
@@ -213,6 +205,8 @@ func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, 
 
 	fecCmd := binary.LittleEndian.Uint16(fecData[4:])
 	if int(fecCmd) != fecCmdData && int(fecCmd) != fecCmdParity {
+		rawData = nil
+		err = ErrUnknownFecCmd
 		return
 	}
 
@@ -247,9 +241,9 @@ func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, 
 	f.rawDatas[sumIndex] = ds
 
 	f.result = f.result[:0]
-	for idx, v := range f.rawDatas {
+	for k, v := range f.rawDatas {
 		if v.decoded {
-			f.delShards(idx)
+			f.delShards(k)
 			continue
 		}
 
@@ -258,21 +252,16 @@ func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, 
 		}
 
 		if v.shardsCount >= f.dataShards {
+			ls := make(map[int]int)
 			codec := v.q
 			for i := 0; i < len(v.q); i++ {
 				d := v.q[i]
 				if len(d) > 0 {
 					sn = binary.LittleEndian.Uint32(d)
-					cmd := int(binary.LittleEndian.Uint16(d[4:]))
 					startRange = int(sn) - (int(sn) % f.shards)
-					if cmd == fecCmdData {
-						codec[(int(sn) - startRange)] = d[f.HeaderOffset():len(d)]
-					} else if cmd == fecCmdParity {
-						codec[(int(sn) - startRange)] = d[f.HeaderOffset():len(d)]
-					} else {
-						err = ErrUnknownFecCmd
-						return
-					}
+					codec[(int(sn) - startRange)] = d[fecHeaderOffset:len(d)]
+					n := binary.LittleEndian.Uint16(d[fecHeaderSize:])
+					ls[(int(sn) - startRange)] = int(n)
 				}
 			}
 
@@ -281,17 +270,22 @@ func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, 
 				return
 			}
 
+			for j, _ := range codec {
+				n, exist := ls[j]
+				if exist {
+					codec[j] = codec[j][:n]
+				}
+			}
+
 			v.decoded = true
 			f.result = append(f.result, codec[:f.dataShards]...)
-			f.rawDatas[idx] = v
+			f.rawDatas[k] = v
 			continue
 		}
 
 		// timeout
 		if (now-v.lastInsert) > fecDataTimeout && !v.decoded {
-			f.delShards(idx)
-			err = ErrFecDataTimeout
-			return
+			f.delShards(k)
 		}
 	}
 
@@ -314,5 +308,6 @@ func (f *FecCodecDecoder) delShards(sumIndex int) {
 
 	ds.q = nil
 	ds.o = nil
+
 	delete(f.rawDatas, sumIndex)
 }

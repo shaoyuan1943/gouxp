@@ -69,8 +69,8 @@ func (conn *RawConn) EnableFEC() {
 		return
 	}
 
-	conn.fecEncoder = NewFecEncoder(FECDataShards, FECParityShards, 0, int(conn.kcp.Mtu()))
-	conn.fecDecoder = NewFecDecoder(FECDataShards, FECParityShards, 0, int(conn.kcp.Mtu()))
+	conn.fecEncoder = NewFecEncoder(FECDataShards, FECParityShards, int(conn.kcp.Mtu()))
+	conn.fecDecoder = NewFecDecoder(FECDataShards, FECParityShards, int(conn.kcp.Mtu()))
 	conn.fecPacketQueue = make([][]byte, 512)
 }
 

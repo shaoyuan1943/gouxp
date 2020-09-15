@@ -42,8 +42,9 @@ func (p PlaintextData) Data() []byte {
 var ConvID uint32 = 555
 
 const (
-	FECDataShards   = 3
-	FECParityShards = 2
+	FECDataShards         = 3
+	FECParityShards       = 2
+	FECRecoverDataTimeout = 100
 )
 
 const (

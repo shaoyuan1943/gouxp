@@ -25,8 +25,8 @@ type RawConn struct {
 	locker         sync.Mutex
 	kcpStatus      *gokcp.KCPStatus
 	stopKCPStatusC chan struct{}
-	fecEncoder     FecEncoder
-	fecDecoder     FecDecoder
+	fecEncoder     *FecCodecEncoder
+	fecDecoder     *FecCodecDecoder
 	fecPacketQueue [][]byte
 	lastActiveTime uint32
 }
@@ -73,9 +73,25 @@ func (conn *RawConn) onKCPDataOutput(data []byte) error {
 		return err
 	}
 
-	err = conn.write(cipherData)
-	if err != nil {
-		return err
+	if conn.fecEncoder != nil && conn.fecDecoder != nil {
+		fecData, err := conn.fecEncoder.Encode(cipherData)
+		if err != nil {
+			return err
+		}
+
+		if fecData != nil {
+			for _, v := range fecData {
+				err = conn.write(v)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	} else {
+		err = conn.write(cipherData)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

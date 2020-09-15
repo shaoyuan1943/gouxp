@@ -49,6 +49,7 @@ func (conn *ServerConn) update() {
 	}()
 
 	conn.locker.Lock()
+
 	err = conn.recvFromKCP()
 	if err != nil {
 		return
@@ -65,12 +66,19 @@ func (conn *ServerConn) update() {
 
 // response
 func (conn *ServerConn) onHeartbeat(data []byte) error {
-	var heartbeatRspBuffer [PacketHeaderSize + 4]byte
-	binary.LittleEndian.PutUint16(heartbeatRspBuffer[macSize:], uint16(protoTypeHeartbeat))
-	binary.LittleEndian.PutUint32(heartbeatRspBuffer[macSize+2:], gokcp.SetupFromNowMS())
+	var heartbeatBuffer [heartbeatBufferSize]byte
+	binary.LittleEndian.PutUint16(heartbeatBuffer[macSize:], uint16(protoTypeHeartbeat))
+	binary.LittleEndian.PutUint32(heartbeatBuffer[PacketHeaderSize:], gokcp.SetupFromNowMS())
 
-	_, err := conn.Write(heartbeatRspBuffer[:])
-	return err
+	conn.locker.Lock()
+	defer conn.locker.Unlock()
+
+	cipherData, err := conn.encrypt(heartbeatBuffer[:])
+	if err != nil {
+		return err
+	}
+
+	return conn.write(cipherData)
 }
 
 func (conn *ServerConn) close(err error) {

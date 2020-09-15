@@ -58,7 +58,7 @@ func TestFecCodec(t *testing.T) {
 	encoder := NewFecEncoder(4, 2, 0, 1400)
 	decoder := NewFecDecoder(4, 2, 0, 1400)
 
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 100000; i++ {
 		rawDatas := make([][]byte, 4)
 		adjust := make([][]byte, 4)
 		rand1, rand2, rand3, rand4 := getRandIndex(12)

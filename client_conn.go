@@ -34,6 +34,10 @@ func (conn *ClientConn) close(err error) {
 	close(conn.closeC)
 	conn.rwc.Close()
 	conn.handler.OnClosed(err)
+
+	st := &gokcp.KCPStatus{}
+	conn.kcp.Snapshot(st)
+	logKCPStatus(conn.ID(), st)
 }
 
 func (conn *ClientConn) onHeartbeat(data []byte) error {
@@ -130,7 +134,6 @@ func (conn *ClientConn) update() {
 }
 
 func (conn *ClientConn) onRecvRawData(data []byte) {
-	var plaintextData []byte
 	var err error
 	defer func() {
 		if err != nil {
@@ -138,22 +141,55 @@ func (conn *ClientConn) onRecvRawData(data []byte) {
 		}
 	}()
 
-	plaintextData, err = conn.decrypt(data)
-	if err != nil {
-		return
+	parseData := func(targetData []byte) error {
+		plaintextData, parseErr := conn.decrypt(targetData)
+		if parseErr != nil {
+			return parseErr
+		}
+
+		protoType := PlaintextData(plaintextData).Type()
+		logicData := PlaintextData(plaintextData).Data()
+		switch protoType {
+		case protoTypeHandshake:
+			parseErr = conn.onHandshake(logicData)
+		case protoTypeHeartbeat:
+			parseErr = conn.onHeartbeat(logicData)
+		case protoTypeData:
+			parseErr = conn.onKCPDataInput(logicData)
+		default:
+			panic(fmt.Sprintf("ConvID(%v) unknown protocol type", conn.ID()))
+		}
+
+		return parseErr
 	}
 
-	protoType := PlaintextData(plaintextData).Type()
-	logicData := PlaintextData(plaintextData).Data()
-	switch protoType {
-	case protoTypeHandshake:
-		err = conn.onHandshake(logicData)
-	case protoTypeHeartbeat:
-		err = conn.onHeartbeat(logicData)
-	case protoTypeData:
-		err = conn.onKCPDataInput(logicData)
-	default:
-		panic(fmt.Sprintf("ConvID(%v) unknown protocol type", conn.ID()))
+	if conn.fecEncoder != nil && conn.fecDecoder != nil {
+		var rawData [][]byte
+		rawData, err = conn.fecDecoder.Decode(data, gokcp.SetupFromNowMS())
+		if err != nil {
+			if err == ErrUnknownFecCmd {
+				err = parseData(data)
+				if err != nil {
+					return
+				}
+			}
+
+			return
+		}
+
+		if len(rawData) > 0 {
+			for _, v := range rawData {
+				err = parseData(v)
+				if err != nil {
+					return
+				}
+			}
+		}
+	} else {
+		err = parseData(data)
+		if err != nil {
+			return
+		}
 	}
 }
 
@@ -188,6 +224,13 @@ func (conn *ClientConn) heartbeat() error {
 	binary.LittleEndian.PutUint16(heartbeatBuffer[macSize:], uint16(protoTypeHeartbeat))
 	binary.LittleEndian.PutUint32(heartbeatBuffer[PacketHeaderSize:], gokcp.SetupFromNowMS())
 
-	_, err := conn.Write(heartbeatBuffer[:])
-	return err
+	conn.locker.Lock()
+	defer conn.locker.Unlock()
+
+	cipherData, err := conn.encrypt(heartbeatBuffer[:])
+	if err != nil {
+		return err
+	}
+
+	return conn.write(cipherData)
 }

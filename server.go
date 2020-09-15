@@ -16,7 +16,7 @@ import (
 type Server struct {
 	rwc            net.PacketConn
 	handler        ServerHandler
-	conns          map[string]*ServerConn
+	allConn        map[string]*ServerConn
 	closeC         chan struct{}
 	closed         atomic.Value
 	scheduler      *TimerScheduler
@@ -47,26 +47,26 @@ func (s *Server) waitForStart() {
 	}
 }
 
-func (s *Server) getConnection(addr net.Addr) *ServerConn {
+func (s *Server) findConnection(addr net.Addr) *ServerConn {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 
-	return s.conns[addr.String()]
+	return s.allConn[addr.String()]
 }
 
 func (s *Server) addConnection(addr net.Addr, conn *ServerConn) {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 
-	s.conns[addr.String()] = conn
+	s.allConn[addr.String()] = conn
 }
 
 func (s *Server) removeConnection(conn *ServerConn) {
 	s.locker.Lock()
 	defer s.locker.Unlock()
 
-	if _, ok := s.conns[conn.addr.String()]; ok {
-		delete(s.conns, conn.addr.String())
+	if _, ok := s.allConn[conn.addr.String()]; ok {
+		delete(s.allConn, conn.addr.String())
 	}
 }
 
@@ -158,7 +158,7 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) (*ServerConn, error
 }
 
 func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
-	conn := s.getConnection(addr)
+	conn := s.findConnection(addr)
 	if conn == nil {
 		newConn, err := s.onNewConnection(addr, data)
 		if err != nil {
@@ -171,7 +171,6 @@ func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
 
 	atomic.StoreUint32(&conn.lastActiveTime, gokcp.SetupFromNowMS())
 
-	var plaintextData []byte
 	var err error
 	defer func() {
 		if err != nil {
@@ -179,24 +178,61 @@ func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
 		}
 	}()
 
-	plaintextData, err = conn.decrypt(data)
-	if err != nil {
-		return
+	parseData := func(targetData []byte) error {
+		plaintextData, parseErr := conn.decrypt(targetData)
+		if parseErr != nil {
+			return parseErr
+		}
+
+		protoType := PlaintextData(plaintextData).Type()
+		logicData := PlaintextData(plaintextData).Data()
+		switch protoType {
+		case protoTypeHandshake:
+			// TODO: if connection is exist but client send handshake protocol, WHY?
+			panic("exist connection recv handshake protocol")
+		case protoTypeHeartbeat:
+			parseErr = conn.onHeartbeat(logicData)
+		case protoTypeData:
+			parseErr = conn.onKCPDataInput(logicData)
+		default:
+			panic(fmt.Sprintf("ConvID(%v) unknown protocol type", conn.ID()))
+		}
+
+		return parseErr
 	}
 
-	protoType := PlaintextData(plaintextData).Type()
-	logicData := PlaintextData(plaintextData).Data()
-	switch protoType {
-	case protoTypeHandshake:
-		// TODO: if connection is exist but client send handshake protocol, WHY?
-		panic("exist connection recv handshake protocol")
-	case protoTypeHeartbeat:
-		err = conn.onHeartbeat(logicData)
-	case protoTypeData:
-		err = conn.onKCPDataInput(logicData)
-	default:
-		panic(fmt.Sprintf("ConvID(%v) unknown protocol type", conn.ID()))
+	if conn.fecEncoder != nil && conn.fecDecoder != nil {
+		var rawData [][]byte
+		rawData, err = conn.fecDecoder.Decode(data, gokcp.SetupFromNowMS())
+		if err != nil {
+			if err == ErrUnknownFecCmd {
+				err = parseData(data)
+				if err != nil {
+					return
+				}
+			}
+
+			return
+		}
+
+		if len(rawData) > 0 {
+			for _, v := range rawData {
+				if len(v) > 0 {
+					err = parseData(v)
+					if err != nil {
+						return
+					}
+				}
+			}
+		}
+	} else {
+		err = parseData(data)
+		if err != nil {
+			return
+		}
 	}
+
+	return
 }
 
 // user shuts down manually
@@ -212,8 +248,8 @@ func (s *Server) close(err error) {
 	s.closed.Store(true)
 
 	s.locker.Lock()
-	tmp := make([]*ServerConn, len(s.conns))
-	for _, conn := range s.conns {
+	tmp := make([]*ServerConn, len(s.allConn))
+	for _, conn := range s.allConn {
 		tmp = append(tmp, conn)
 	}
 	s.locker.Unlock()
@@ -240,7 +276,7 @@ func NewServer(rwc net.PacketConn, handler ServerHandler, parallelCount uint32) 
 	s := &Server{
 		rwc:       rwc,
 		handler:   handler,
-		conns:     make(map[string]*ServerConn),
+		allConn:   make(map[string]*ServerConn),
 		closeC:    make(chan struct{}),
 		scheduler: NewTimerScheduler(parallelCount),
 	}

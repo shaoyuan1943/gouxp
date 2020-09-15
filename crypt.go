@@ -69,14 +69,14 @@ func (codec *Chacha20poly1305Crypto) Encrypt(src []byte) (dst []byte, err error)
 	copy(src, src[codec.aead.Overhead():len(src)])
 	nonce := codec.writeNonce.Load().(*CryptoNonce)
 	dst = codec.aead.Seal(src[:0], nonce.data, src[:len(src)-codec.aead.Overhead()], nil)
-	nonce.incr()
+	//nonce.incr()
 	return
 }
 
 func (codec *Chacha20poly1305Crypto) Decrypt(src []byte) (dst []byte, err error) {
 	nonce := codec.readNonce.Load().(*CryptoNonce)
 	dst, err = codec.aead.Open(src[:0], nonce.data, src, nil)
-	nonce.incr()
+	//nonce.incr()
 	return
 }
 
@@ -107,6 +107,8 @@ func NewChacha20poly1305CryptoCodec() *Chacha20poly1305Crypto {
 	codec.aead = aead
 	return codec
 }
+
+var zeroValue atomic.Value
 
 type Salsa20Crypto struct {
 	enMacBuf      [macSize]byte // avoid make array every times
@@ -159,8 +161,10 @@ func (codec *Salsa20Crypto) Encrypt(src []byte) (dst []byte, err error) {
 
 	salsa20.XORKeyStream(codec.enPoly1305Key[:], codec.enPoly1305Key[:], nonce.data, &codec.key)
 	poly1305.Sum(&codec.enMacBuf, src[macSize:], &codec.enPoly1305Key)
+	//fmt.Printf("Encrypt, codec.enMacBuf: %v, enPoly1305Key: %v, nonce: %v, mac: %v\n", codec.enMacBuf, codec.enPoly1305Key, nonce.data, codec.enMacBuf)
 	copy(src, codec.enMacBuf[:])
-	nonce.incr()
+	zero := zeroValue.Load().([]byte)
+	copy(codec.enPoly1305Key[:], zero)
 	return src, nil
 }
 
@@ -168,12 +172,14 @@ func (codec *Salsa20Crypto) Decrypt(src []byte) (dst []byte, err error) {
 	nonce := codec.readNonce.Load().(*CryptoNonce)
 	salsa20.XORKeyStream(codec.dePoly1305Key[:], codec.dePoly1305Key[:], nonce.data, &codec.key)
 	copy(codec.deMacBuf[:], src[:macSize])
+	//fmt.Printf("Decrypt, dePoly1305Key: %v, nonce: %v, mac: %v\n", codec.enPoly1305Key, nonce.data, codec.deMacBuf)
 	if !poly1305.Verify(&codec.deMacBuf, src[macSize:], &codec.dePoly1305Key) {
 		return nil, ErrMessageAuthFailed
 	}
 
 	salsa20.XORKeyStream(src[macSize:], src[macSize:], nonce.data, &codec.key)
-	nonce.incr()
+	zero := zeroValue.Load().([]byte)
+	copy(codec.dePoly1305Key[:], zero)
 	return src[macSize:], nil
 }
 
@@ -193,4 +199,9 @@ func createCryptoCodec(tp CryptoType) CryptCodec {
 	default:
 		return nil
 	}
+}
+
+func init() {
+	zero := make([]byte, 32)
+	zeroValue.Store(zero)
 }
