@@ -27,7 +27,6 @@ type RawConn struct {
 	stopKCPStatusC chan struct{}
 	fecEncoder     *FecCodecEncoder
 	fecDecoder     *FecCodecDecoder
-	fecPacketQueue [][]byte
 	lastActiveTime uint32
 }
 
