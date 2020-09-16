@@ -34,10 +34,6 @@ func (conn *ClientConn) close(err error) {
 	close(conn.closeC)
 	conn.rwc.Close()
 	conn.handler.OnClosed(err)
-
-	st := &gokcp.KCPStatus{}
-	conn.kcp.Snapshot(st)
-	logKCPStatus(conn.ID(), st)
 }
 
 func (conn *ClientConn) onHeartbeat(data []byte) error {
