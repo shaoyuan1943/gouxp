@@ -27,10 +27,11 @@ func (conn *ClientConn) close(err error) {
 		return
 	}
 
+	conn.closed.Store(true)
+
 	conn.locker.Lock()
 	defer conn.locker.Unlock()
 
-	conn.closed.Store(true)
 	close(conn.closeC)
 	conn.rwc.Close()
 	conn.handler.OnClosed(err)
