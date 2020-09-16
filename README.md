@@ -138,10 +138,7 @@ Client端开始工作，按照gouxp工作流程，会先发送握手数据包，
 设置发送窗口大小和接收窗口大小，可以简单理解为TCP的SND_BUF和RCV_BUF，这里的单位是个数，默认为32，建议以32的倍数扩增。  
 
 #### func (conn *RawConn) SetMTU(mtu int) bool
-设置传输路径MTU。  
-
-#### func (conn *RawConn) SetBufferReserved(reserved int)
-设置KCP数据包头预留的字节数，用于加解密或数据包头特殊标记。    
+设置传输路径MTU，修改MTU会影响到MSS，所以。   
 
 #### func (conn *RawConn) SetUpdateInterval(interval int) 
 设置KCP状态循环间隔，推荐值为5ms、10ms、15ms。  

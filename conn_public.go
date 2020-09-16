@@ -135,14 +135,17 @@ func (conn *RawConn) SetMTU(mtu int) bool {
 		return false
 	}
 
-	return conn.kcp.SetMTU(mtu)
-}
+	result := conn.kcp.SetMTU(mtu)
+	if !result {
+		return false
+	}
 
-func (conn *RawConn) SetBufferReserved(reserved int) bool {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
+	result = conn.kcp.SetBufferReserved(int(PacketHeaderSize))
+	if !result {
+		return false
+	}
 
-	return conn.kcp.SetBufferReserved(reserved)
+	return true
 }
 
 func (conn *RawConn) SetUpdateInterval(interval int) {
