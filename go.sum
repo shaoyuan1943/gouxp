@@ -2,8 +2,6 @@ github.com/andybalholm/brotli v1.0.0 h1:7UCwP93aiSfvWpapti8g88vVVGp2qqtGyePsSuDa
 github.com/andybalholm/brotli v1.0.0/go.mod h1:loMXtMfwqflxFJPmdbJO0a3KNoPuLBgiu3qAvBg8x/Y=
 github.com/fatih/color v1.9.0 h1:8xPHl4/q1VyqGIPif1F+1V3Y3lSmrq01EabUW3CoW5s=
 github.com/fatih/color v1.9.0/go.mod h1:eQcE1qtQxscV5RaZvpXrrb8Drkc3/DdQ+uUYCNjL+zU=
-github.com/golang/crypto v0.0.0-20200728195943-123391ffb6de h1:P9jPPhlD711NnY9l80eEpit8Z+xwhnL6DzQ5Z4atVOs=
-github.com/golang/crypto v0.0.0-20200728195943-123391ffb6de/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
 github.com/klauspost/compress v1.10.7 h1:7rix8v8GpI3ZBb0nSozFRgbtXKv+hOe+qfEpZqybrAg=
 github.com/klauspost/compress v1.10.7/go.mod h1:aoV0uJVorq1K+umq18yTdKaF57EivdYsUV+/s2qKfXs=
 github.com/klauspost/cpuid v1.2.4 h1:EBfaK0SWSwk+fgk6efYFWdzl8MwRWoOO1gkmiaTXPW4=
@@ -23,10 +21,8 @@ github.com/mmcloughlin/avo v0.0.0-20200803215136-443f81d77104 h1:ULR/QWMgcgRiZLU
 github.com/mmcloughlin/avo v0.0.0-20200803215136-443f81d77104/go.mod h1:wqKykBG2QzQDJEzvRkcS8x6MiSJkF52hXZsXcjaB3ls=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
-github.com/shaoyuan1943/gokcp v0.0.0-20200701080931-a27a21f8d14f h1:ZILEpRar0g8f8bbpUQVMUuvDRu8rCxDwOXojEgAumUE=
-github.com/shaoyuan1943/gokcp v0.0.0-20200701080931-a27a21f8d14f/go.mod h1:wfyF8nT1XQetwweLPmotauO0FImtp8zbz4CO+eC9qrI=
-github.com/shaoyuan1943/gokcp v0.0.0-20200915085911-94dab24b80d2 h1:xmQ0zj9wU076Em/WstsTSGyjNWh9bkiyfJ74ZF7HIFk=
-github.com/shaoyuan1943/gokcp v0.0.0-20200915085911-94dab24b80d2/go.mod h1:wfyF8nT1XQetwweLPmotauO0FImtp8zbz4CO+eC9qrI=
+github.com/shaoyuan1943/gokcp v0.0.0-20200916025754-2b7bc5ef6576 h1:ZMrZ3Pjb9hgTwB+HkoHl6O8tkCwvbVbH/pHGgZQ070I=
+github.com/shaoyuan1943/gokcp v0.0.0-20200916025754-2b7bc5ef6576/go.mod h1:wfyF8nT1XQetwweLPmotauO0FImtp8zbz4CO+eC9qrI=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasthttp v1.16.0 h1:9zAqOYLl8Tuy3E5R6ckzGDJ1g8+pw15oQp2iL9Jl6gQ=

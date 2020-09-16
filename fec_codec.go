@@ -16,9 +16,9 @@ const (
 	fecCmdParity    = 0x0E
 	fecResultSize   = 50
 	fecDataTimeout  = 10000
-	fecHeaderSize   = 6
-	fecLengthSize   = 2
-	fecHeaderOffset = fecHeaderSize + fecLengthSize
+	fecHeaderOffset = 6
+	fecLengthOffset = 2
+	fecHeaderSize   = fecHeaderOffset + fecLengthOffset
 )
 
 var (
@@ -97,9 +97,9 @@ func (f *FecCodecEncoder) Encode(rawData []byte) (fecData [][]byte, err error) {
 	}
 
 	l := len(rawData)
-	f.q[f.insertIndex] = f.q[f.insertIndex][:fecHeaderOffset+l]
-	copy(f.q[f.insertIndex][fecHeaderOffset:], rawData)
-	binary.LittleEndian.PutUint16(f.q[f.insertIndex][fecHeaderSize:], uint16(l))
+	f.q[f.insertIndex] = f.q[f.insertIndex][:fecHeaderSize+l]
+	copy(f.q[f.insertIndex][fecHeaderSize:], rawData)
+	binary.LittleEndian.PutUint16(f.q[f.insertIndex][fecHeaderOffset:], uint16(l))
 	f.lastInsertTime = gokcp.SetupFromNowMS()
 
 	if l > f.maxRawDataLen {
@@ -107,11 +107,11 @@ func (f *FecCodecEncoder) Encode(rawData []byte) (fecData [][]byte, err error) {
 	}
 
 	if (f.insertIndex + 1) == f.dataShards {
-		maxLen := f.maxRawDataLen + fecHeaderOffset
+		maxLen := f.maxRawDataLen + fecHeaderSize
 		for i := 0; i < (f.dataShards + f.parityShards); i++ {
 			if i >= f.dataShards {
 				f.q[i] = f.q[i][:maxLen]
-				f.codecData[i] = f.q[i][fecHeaderOffset:maxLen]
+				f.codecData[i] = f.q[i][fecHeaderSize:maxLen]
 			} else {
 				orgLen := len(f.q[i])
 				if orgLen < maxLen {
@@ -119,7 +119,7 @@ func (f *FecCodecEncoder) Encode(rawData []byte) (fecData [][]byte, err error) {
 					copy(f.q[i][orgLen:maxLen], f.zero)
 				}
 
-				f.codecData[i] = f.q[i][fecHeaderOffset:maxLen]
+				f.codecData[i] = f.q[i][fecHeaderSize:maxLen]
 			}
 		}
 
@@ -150,13 +150,13 @@ func (f *FecCodecEncoder) Encode(rawData []byte) (fecData [][]byte, err error) {
 
 func (f *FecCodecEncoder) markData(data []byte) {
 	binary.LittleEndian.PutUint32(data[:4], uint32(f.nextSN))
-	binary.LittleEndian.PutUint16(data[4:fecHeaderSize], uint16(fecCmdData))
+	binary.LittleEndian.PutUint16(data[4:fecHeaderOffset], uint16(fecCmdData))
 	f.nextSN++
 }
 
 func (f *FecCodecEncoder) markParity(data []byte) {
 	binary.LittleEndian.PutUint32(data[:4], uint32(f.nextSN))
-	binary.LittleEndian.PutUint16(data[4:fecHeaderSize], uint16(fecCmdParity))
+	binary.LittleEndian.PutUint16(data[4:fecHeaderOffset], uint16(fecCmdParity))
 	f.nextSN++
 }
 
@@ -259,8 +259,8 @@ func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, 
 				if len(d) > 0 {
 					sn = binary.LittleEndian.Uint32(d)
 					startRange = int(sn) - (int(sn) % f.shards)
-					codec[(int(sn) - startRange)] = d[fecHeaderOffset:len(d)]
-					n := binary.LittleEndian.Uint16(d[fecHeaderSize:])
+					codec[(int(sn) - startRange)] = d[fecHeaderSize:len(d)]
+					n := binary.LittleEndian.Uint16(d[fecHeaderOffset:])
 					ls[(int(sn) - startRange)] = int(n)
 				}
 			}

@@ -71,7 +71,6 @@ func (conn *RawConn) EnableFEC() {
 
 	conn.fecEncoder = NewFecEncoder(FECDataShards, FECParityShards, int(conn.kcp.Mtu()))
 	conn.fecDecoder = NewFecDecoder(FECDataShards, FECParityShards, int(conn.kcp.Mtu()))
-	conn.fecPacketQueue = make([][]byte, 512)
 }
 
 // For use KCP status:
@@ -128,7 +127,7 @@ func (conn *RawConn) SetWindow(sndWnd, rcvWnd int) {
 	conn.kcp.SetWndSize(sndWnd, rcvWnd)
 }
 
-func (conn *RawConn) SetMTU(mtu int, reserved int) bool {
+func (conn *RawConn) SetMTU(mtu int) bool {
 	conn.locker.Lock()
 	defer conn.locker.Unlock()
 
@@ -136,7 +135,14 @@ func (conn *RawConn) SetMTU(mtu int, reserved int) bool {
 		return false
 	}
 
-	return conn.kcp.SetMTU(mtu, reserved)
+	return conn.kcp.SetMTU(mtu)
+}
+
+func (conn *RawConn) SetBufferReserved(reserved int) bool {
+	conn.locker.Lock()
+	defer conn.locker.Unlock()
+
+	return conn.kcp.SetBufferReserved(reserved)
 }
 
 func (conn *RawConn) SetUpdateInterval(interval int) {
