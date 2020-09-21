@@ -108,7 +108,7 @@ gouxp支持FEC（前向纠错），在公网上（典型场景如移动网络）
 
 ## 接口
 #### NewServer(rwc net.PacketConn, handler ServerHandler, parallelCount uint32) *Server
-新建一个Server，rwc通过net.ListenUDP产生，handler为事件回调。  
+新建一个Server，rwc通过net.ListenUDP产生，handler为事件回调，parallelCount为执行所有ServerConn kcp.Update的goroutine数目，过小的可能会导致CPU过高，推荐值2、4、6。  
 
 #### func (s *Server) UseCryptoCodec(cryptoType CryptoType)
 Server端使用何种加解密方式。  
@@ -138,7 +138,7 @@ Client端开始工作，按照gouxp工作流程，会先发送握手数据包，
 设置发送窗口大小和接收窗口大小，可以简单理解为TCP的SND_BUF和RCV_BUF，这里的单位是个数，默认为32，建议以32的倍数扩增。  
 
 #### func (conn *RawConn) SetMTU(mtu int) bool
-设置传输路径MTU，修改MTU会影响到MSS，所以。   
+设置传输路径MTU。   
 
 #### func (conn *RawConn) SetUpdateInterval(interval int) 
 设置KCP状态循环间隔，推荐值为5ms、10ms、15ms。  
