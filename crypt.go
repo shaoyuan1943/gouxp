@@ -51,6 +51,10 @@ func (codec *Chacha20poly1305Crypto) SetKey(key []byte) {
 }
 
 func (codec *Chacha20poly1305Crypto) setNonce(nonce []byte, nonceValue *atomic.Value) {
+	if len(nonce) < chacha20poly1305.NonceSize {
+		panic(ErrInvalidNonceSize)
+	}
+
 	cryptoNonce := nonceValue.Load().(*CryptoNonce)
 	copy(cryptoNonce.data[:], nonce)
 	nonceValue.Store(cryptoNonce)
@@ -98,7 +102,7 @@ func NewChacha20poly1305CryptoCodec() *Chacha20poly1305Crypto {
 		panic(err)
 	}
 
-	// Important!
+	// IMPORTANT!
 	// In gouxp, reserved MAC size is 16bytes in data head, so your encoder MUST use 16bytes MAC
 	if aead.Overhead() < int(macSize) {
 		panic("reserved mac size invalid")
@@ -161,10 +165,10 @@ func (codec *Salsa20Crypto) Encrypt(src []byte) (dst []byte, err error) {
 
 	salsa20.XORKeyStream(codec.enPoly1305Key[:], codec.enPoly1305Key[:], nonce.data, &codec.key)
 	poly1305.Sum(&codec.enMacBuf, src[macSize:], &codec.enPoly1305Key)
-	//fmt.Printf("Encrypt, codec.enMacBuf: %v, enPoly1305Key: %v, nonce: %v, mac: %v\n", codec.enMacBuf, codec.enPoly1305Key, nonce.data, codec.enMacBuf)
 	copy(src, codec.enMacBuf[:])
 	zero := zeroValue.Load().([]byte)
 	copy(codec.enPoly1305Key[:], zero)
+	// nonce.incr()
 	return src, nil
 }
 
@@ -172,7 +176,6 @@ func (codec *Salsa20Crypto) Decrypt(src []byte) (dst []byte, err error) {
 	nonce := codec.readNonce.Load().(*CryptoNonce)
 	salsa20.XORKeyStream(codec.dePoly1305Key[:], codec.dePoly1305Key[:], nonce.data, &codec.key)
 	copy(codec.deMacBuf[:], src[:macSize])
-	//fmt.Printf("Decrypt, dePoly1305Key: %v, nonce: %v, mac: %v\n", codec.enPoly1305Key, nonce.data, codec.deMacBuf)
 	if !poly1305.Verify(&codec.deMacBuf, src[macSize:], &codec.dePoly1305Key) {
 		return nil, ErrMessageAuthFailed
 	}
@@ -180,6 +183,7 @@ func (codec *Salsa20Crypto) Decrypt(src []byte) (dst []byte, err error) {
 	salsa20.XORKeyStream(src[macSize:], src[macSize:], nonce.data, &codec.key)
 	zero := zeroValue.Load().([]byte)
 	copy(codec.dePoly1305Key[:], zero)
+	// nonce.incr()
 	return src[macSize:], nil
 }
 

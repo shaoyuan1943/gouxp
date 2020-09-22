@@ -2,7 +2,6 @@ package gouxp
 
 import (
 	"encoding/binary"
-	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -155,7 +154,7 @@ func (conn *ClientConn) onRecvRawData(data []byte) {
 		case protoTypeData:
 			parseErr = conn.onKCPDataInput(logicData)
 		default:
-			panic(fmt.Sprintf("ConvID(%v) unknown protocol type", conn.ID()))
+			parseErr = ErrUnknownProtocolType
 		}
 
 		return parseErr

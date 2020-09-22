@@ -11,4 +11,5 @@ var (
 	ErrTryAgain            = errors.New("try again")
 	ErrWriteDataTooLong    = errors.New("write data too long")
 	ErrUnknownProtocolType = errors.New("unknown protocol type")
+	ErrExistConnection     = errors.New("exist conneciton")
 )

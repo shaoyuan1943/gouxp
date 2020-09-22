@@ -2,7 +2,6 @@ package gouxp
 
 import (
 	"encoding/binary"
-	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -188,14 +187,13 @@ func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
 		logicData := PlaintextData(plaintextData).Data()
 		switch protoType {
 		case protoTypeHandshake:
-			// TODO: if connection is exist but client send handshake protocol, WHY?
-			panic("exist connection recv handshake protocol")
+			parseErr = ErrExistConnection
 		case protoTypeHeartbeat:
 			parseErr = conn.onHeartbeat(logicData)
 		case protoTypeData:
 			parseErr = conn.onKCPDataInput(logicData)
 		default:
-			panic(fmt.Sprintf("ConvID(%v) unknown protocol type", conn.ID()))
+			parseErr = ErrUnknownProtocolType
 		}
 
 		return parseErr
@@ -269,10 +267,6 @@ func (s *Server) Start() {
 }
 
 func NewServer(rwc net.PacketConn, handler ServerHandler, parallelCount uint32) *Server {
-	if rwc == nil || handler == nil {
-		panic("Invalid params.")
-	}
-
 	s := &Server{
 		rwc:       rwc,
 		handler:   handler,
