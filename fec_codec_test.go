@@ -55,8 +55,8 @@ func TestFecCodec(t *testing.T) {
 	testdata[11] = []byte("42389379fsdhaiofhasdkjfhiuo3hoi34hfli34")
 	testdata[12] = []byte("fsd34809f43-2fhsdioafhio324h8r1h43fh4389hf9843hf8hsadiofhafh842391h348")
 
-	encoder := NewFecEncoder(4, 2, 0, 1400)
-	decoder := NewFecDecoder(4, 2, 0, 1400)
+	encoder := NewFecEncoder(4, 2, 0)
+	decoder := NewFecDecoder(4, 2, 0)
 
 	for i := 0; i < 100000; i++ {
 		rawDatas := make([][]byte, 4)

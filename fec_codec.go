@@ -48,6 +48,19 @@ func putBuffer(buffer []byte) {
 	}
 }
 
+func isFECFormat(data []byte) bool {
+	if data == nil || len(data) <= 0 {
+		return false
+	}
+
+	fecCmd := binary.LittleEndian.Uint16(data[4:])
+	if int(fecCmd) != fecCmdData && int(fecCmd) != fecCmdParity {
+		return false
+	}
+
+	return true
+}
+
 type FecCodecEncoder struct {
 	codec          reedsolomon.Encoder
 	q              [][]byte
@@ -85,10 +98,6 @@ func NewFecEncoder(dataShards, parityShards, bufferSize int) *FecCodecEncoder {
 	}
 
 	return fecEncoder
-}
-
-func (f *FecCodecEncoder) DataShardsSize() int {
-	return f.insertIndex
 }
 
 func (f *FecCodecEncoder) Encode(rawData []byte) (fecData [][]byte, err error) {
@@ -203,11 +212,8 @@ func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, 
 		panic("raw data length invalid")
 	}
 
-	fecCmd := binary.LittleEndian.Uint16(fecData[4:])
-	if int(fecCmd) != fecCmdData && int(fecCmd) != fecCmdParity {
-		rawData = nil
-		err = ErrUnknownFecCmd
-		return
+	if !isFECFormat(fecData) {
+		return nil, ErrUnknownFecCmd
 	}
 
 	sn := binary.LittleEndian.Uint32(fecData)

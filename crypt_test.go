@@ -221,12 +221,11 @@ func TestClientServerCodec(t *testing.T) {
 	}
 
 	t.Logf("plaintextData: %v", string(orgData))
+
+	codecData(t, clientCodec, serverCodec)
 }
 
-func TestUnorderCodec(t *testing.T) {
-	encoder := createCryptoCodec(UseSalsa20)
-	decoder := createCryptoCodec(UseSalsa20)
-
+func codecData(t *testing.T, encoder, decoder CryptCodec) {
 	data1 := []byte("342532452345dfsdvdfs-hjfo[eqwihui")
 	testData1 := make([]byte, len(data1)+int(macLen))
 	copy(testData1[macLen:], data1)
@@ -239,6 +238,12 @@ func TestUnorderCodec(t *testing.T) {
 	testData3 := make([]byte, len(data3)+int(macLen))
 	copy(testData3[macLen:], data3)
 
+	cipherData2, err := encoder.Encrypt(testData2)
+	if err != nil {
+		t.Fatalf("encoder.Encrypt data2 err: %v", err)
+		return
+	}
+
 	cipherData1, err := encoder.Encrypt(testData1)
 	if err != nil {
 		t.Fatalf("encoder.Encrypt data1 err: %v", err)
@@ -248,12 +253,6 @@ func TestUnorderCodec(t *testing.T) {
 	cipherData3, err := encoder.Encrypt(testData3)
 	if err != nil {
 		t.Fatalf("encoder.Encrypt data3 err: %v", err)
-		return
-	}
-
-	cipherData2, err := encoder.Encrypt(testData2)
-	if err != nil {
-		t.Fatalf("encoder.Encrypt data2 err: %v", err)
 		return
 	}
 
@@ -278,4 +277,11 @@ func TestUnorderCodec(t *testing.T) {
 	t.Logf("plaintextData1: %v", string(plaintextData1))
 	t.Logf("plaintextData2: %v", string(plaintextData2))
 	t.Logf("plaintextData3: %v", string(plaintextData3))
+}
+
+func TestUnorderCodec(t *testing.T) {
+	encoder := createCryptoCodec(UseSalsa20)
+	decoder := createCryptoCodec(UseSalsa20)
+
+	codecData(t, encoder, decoder)
 }
