@@ -14,7 +14,7 @@ import (
 // MAC: check data integrity
 
 // packet protocol:
-// raw data -> kcp data -> compress -> crypto -> fec
+// raw data -> kcp data -> [compress] -> [crypto] -> fec
 const (
 	macSize          uint16 = 16
 	protoSize        uint16 = 2

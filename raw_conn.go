@@ -97,7 +97,6 @@ func (conn *RawConn) onKCPDataOutput(data []byte) error {
 }
 
 func (conn *RawConn) recvFromKCP() error {
-	// KCP.Recv
 	buffer := make([]byte, conn.kcp.Mtu())
 	if !conn.kcp.IsStreamMode() {
 		if size := conn.kcp.PeekSize(); size > 0 {

@@ -31,7 +31,7 @@ func (s *Server) UseCryptoCodec(cryptoType CryptoType) {
 	s.connCryptoType = cryptoType
 }
 
-func (s *Server) waitForStart() {
+func (s *Server) waiting4Start() {
 	for {
 		if atomic.LoadInt64(&s.started) != 0 {
 			return
@@ -70,7 +70,7 @@ func (s *Server) removeConnection(conn *ServerConn) {
 }
 
 func (s *Server) readRawDataLoop() {
-	s.waitForStart()
+	s.waiting4Start()
 
 	buffer := make([]byte, MaxMTULimit)
 	for {
