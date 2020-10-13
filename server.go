@@ -17,7 +17,6 @@ type Server struct {
 	handler        ServerHandler
 	allConn        map[string]*ServerConn
 	closeC         chan struct{}
-	closed         atomic.Value
 	scheduler      *TimerScheduler
 	locker         sync.Mutex
 	started        int64
@@ -239,12 +238,6 @@ func (s *Server) Close() {
 }
 
 func (s *Server) close(err error) {
-	if s.closed.Load().(bool) == true {
-		return
-	}
-
-	s.closed.Store(true)
-
 	s.locker.Lock()
 	tmp := make([]*ServerConn, len(s.allConn))
 	for _, conn := range s.allConn {
@@ -275,7 +268,6 @@ func NewServer(rwc net.PacketConn, handler ServerHandler, parallelCount uint32) 
 		scheduler: NewTimerScheduler(parallelCount),
 	}
 
-	s.closed.Store(false)
 	go s.readRawDataLoop()
 	return s
 }

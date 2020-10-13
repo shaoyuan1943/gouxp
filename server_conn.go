@@ -89,10 +89,8 @@ func (conn *ServerConn) close(err error) {
 	conn.locker.Lock()
 	defer conn.locker.Unlock()
 
-	conn.closed.Store(true)
-
 	close(conn.closeC)
 	conn.server.removeConnection(conn)
-
 	conn.handler.OnClosed(err)
+	conn.closed.Store(true)
 }

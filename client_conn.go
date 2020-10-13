@@ -29,12 +29,10 @@ func (conn *ClientConn) close(err error) {
 	conn.locker.Lock()
 	defer conn.locker.Unlock()
 
-	conn.closed.Store(true)
-
 	close(conn.closeC)
 	conn.rwc.Close()
-
 	conn.handler.OnClosed(err)
+	conn.closed.Store(true)
 }
 
 func (conn *ClientConn) onHeartbeat(data []byte) error {
