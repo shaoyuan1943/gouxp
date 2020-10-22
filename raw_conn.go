@@ -108,7 +108,6 @@ func (conn *RawConn) recvFromKCP() error {
 			}
 
 			if n != size {
-				logger.Debugf("n: %v, size: %v", n, size)
 				return gokcp.ErrDataInvalid
 			}
 
