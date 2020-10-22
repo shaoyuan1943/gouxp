@@ -28,6 +28,7 @@ type RawConn struct {
 	fecEncoder     *FecCodecEncoder
 	fecDecoder     *FecCodecDecoder
 	lastActiveTime uint32
+	kcpDataBuffer  []byte
 }
 
 func (conn *RawConn) encrypt(data []byte) (cipherData []byte, err error) {
@@ -100,13 +101,18 @@ func (conn *RawConn) recvFromKCP() error {
 	for {
 		size := conn.kcp.PeekSize()
 		if size > 0 {
-			buffer := make([]byte, size)
-			n, err := conn.kcp.Recv(buffer)
+			conn.kcpDataBuffer = conn.kcpDataBuffer[:size]
+			n, err := conn.kcp.Recv(conn.kcpDataBuffer)
 			if err != nil {
 				return err
 			}
 
-			conn.handler.OnNewDataComing(buffer[:n])
+			if n != size {
+				logger.Debugf("n: %v, size: %v", n, size)
+				return gokcp.ErrDataInvalid
+			}
+
+			conn.handler.OnNewDataComing(conn.kcpDataBuffer)
 		} else {
 			break
 		}

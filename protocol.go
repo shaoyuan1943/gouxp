@@ -2,8 +2,6 @@ package gouxp
 
 import (
 	"encoding/binary"
-
-	"github.com/shaoyuan1943/gokcp"
 )
 
 // gouxp packet format:
@@ -50,7 +48,7 @@ const (
 	// | header: 18bytes | convID: 4bytes | crypto public key: 8bytes |
 	handshakeBufferSize = PacketHeaderSize + 4 + 8
 	heartbeatBufferSize = PacketHeaderSize + 4
-	MaxMTULimit         = gokcp.KCP_MTU_DEF * 4
+	MaxMTULimit         = 65535
 )
 
 var logger Logger

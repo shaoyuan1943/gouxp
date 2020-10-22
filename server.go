@@ -151,7 +151,7 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) (*ServerConn, error
 	conn.server = s
 	conn.onHandshaked()
 	s.handler.OnNewConnComing(conn)
-
+	conn.kcpDataBuffer = make([]byte, MaxMTULimit)
 	return conn, nil
 }
 

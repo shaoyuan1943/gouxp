@@ -51,16 +51,20 @@ func (conn *ClientConn) onHandshake(data []byte) error {
 		conn.cryptoCodec.SetWriteNonce(nonce[:])
 	}
 
-	// 2. send first heartbeat
+	// 2. init data buffer
+	conn.kcpDataBuffer = make([]byte, MaxMTULimit)
+
+	// 3. send first heartbeat
 	err := conn.heartbeat()
 	if err != nil {
 		return err
 	}
 
-	// 3. client handler callback
-	conn.handler.OnReady()
 	// 4. update KCP
 	go conn.update()
+
+	// 5. client handler callback
+	conn.handler.OnReady()
 	return nil
 }
 
