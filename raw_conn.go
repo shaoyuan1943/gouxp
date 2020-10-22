@@ -97,28 +97,18 @@ func (conn *RawConn) onKCPDataOutput(data []byte) error {
 }
 
 func (conn *RawConn) recvFromKCP() error {
-	buffer := make([]byte, conn.kcp.Mtu())
-	if !conn.kcp.IsStreamMode() {
-		if size := conn.kcp.PeekSize(); size > 0 {
+	for {
+		size := conn.kcp.PeekSize()
+		if size > 0 {
+			buffer := make([]byte, size)
 			n, err := conn.kcp.Recv(buffer)
 			if err != nil {
 				return err
 			}
 
 			conn.handler.OnNewDataComing(buffer[:n])
-		}
-	} else {
-		for {
-			if size := conn.kcp.PeekSize(); size > 0 {
-				n, err := conn.kcp.Recv(buffer)
-				if err != nil {
-					return err
-				}
-
-				conn.handler.OnNewDataComing(buffer[:n])
-			} else {
-				break
-			}
+		} else {
+			break
 		}
 	}
 

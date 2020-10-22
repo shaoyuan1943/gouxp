@@ -285,3 +285,54 @@ func TestUnorderCodec(t *testing.T) {
 
 	codecData(t, encoder, decoder)
 }
+
+func exchangedCodec(t *testing.T) (CryptCodec, CryptCodec) {
+	clientCodec := createCryptoCodec(UseSalsa20)
+	privateKey, publicKey := dh64.KeyPair()
+	clientData := make([]byte, macLen+8)
+	binary.LittleEndian.PutUint64(clientData[macLen:], publicKey)
+	clientCipherData, err := clientCodec.Encrypt(clientData)
+	if err != nil {
+		t.Fatalf("clientCodec.Encrypto err: %v", err)
+		return nil, nil
+	}
+
+	serverCodec := createCryptoCodec(UseSalsa20)
+	plaintextData, err := serverCodec.Decrypt(clientCipherData)
+	if err != nil {
+		t.Fatalf("serverCodec.Decrypto err: %v", err)
+		return nil, nil
+	}
+
+	clientPublicKey := binary.LittleEndian.Uint64(plaintextData)
+	serverPrivateKey, serverPublicKey := dh64.KeyPair()
+	serverNum := dh64.Secret(serverPrivateKey, clientPublicKey)
+	var serverNonce [8]byte
+	binary.LittleEndian.PutUint64(serverNonce[:], serverNum)
+
+	serverData := make([]byte, macLen+16)
+	binary.LittleEndian.PutUint64(serverData[macLen:], serverPublicKey)
+	serverCipherData, err := serverCodec.Encrypt(serverData)
+	if err != nil {
+		t.Fatalf("serverCodec.Encrypto err: %v", err)
+		return nil, nil
+	}
+
+	serverCodec.SetReadNonce(serverNonce[:])
+	serverCodec.SetWriteNonce(serverNonce[:])
+
+	serverPlaintextData, err := clientCodec.Decrypt(serverCipherData)
+	if err != nil {
+		t.Fatalf("clientCodec.Decrypto err: %v", err)
+		return nil, nil
+	}
+
+	key := binary.LittleEndian.Uint64(serverPlaintextData)
+	clientNum := dh64.Secret(privateKey, key)
+	var clientNonce [8]byte
+	binary.LittleEndian.PutUint64(clientNonce[:], clientNum)
+	clientCodec.SetWriteNonce(clientNonce[:])
+	clientCodec.SetWriteNonce(clientNonce[:])
+
+	return clientCodec, serverCodec
+}

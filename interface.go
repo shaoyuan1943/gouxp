@@ -1,7 +1,8 @@
 package gouxp
 
 type ServerHandler interface {
-	OnNewClientComing(conn *ServerConn)
+	OnNewConnComing(conn *ServerConn)
+	OnConnClosed(conn *ServerConn, err error)
 	OnClosed(err error)
 }
 

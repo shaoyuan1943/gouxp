@@ -150,7 +150,7 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) (*ServerConn, error
 	conn.closeC = make(chan struct{})
 	conn.server = s
 	conn.onHandshaked()
-	s.handler.OnNewClientComing(conn)
+	s.handler.OnNewConnComing(conn)
 
 	return conn, nil
 }
@@ -240,6 +240,7 @@ func (s *Server) Close() {
 func (s *Server) close(err error) {
 	s.locker.Lock()
 	tmp := make([]*ServerConn, len(s.allConn))
+	tmp = tmp[:0]
 	for _, conn := range s.allConn {
 		tmp = append(tmp, conn)
 	}

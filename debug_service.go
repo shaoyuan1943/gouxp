@@ -6,7 +6,7 @@ var logContents = `
 kcp: %v
 SendUNA: %v, SendNext: %v, RecvNext: %v,
 LastACK: %v, Threshold: %v, RTO: %v,
-FastResendACL: %v, FastACKLimit: %v, 
+FastResendACK: %v, FastACKLimit: %v, 
 SendWnd: %v, RecvWnd: %v, RemoteWnd: %v, Wnd: %v,
 SendQueueLen: %v, SendBufferLen: %v, RecvQueueLen: %v, RecvBufferLen: %v, ACKListLen: %v, Incr: %v
 `

@@ -82,15 +82,18 @@ func (conn *ServerConn) onHeartbeat(data []byte) error {
 }
 
 func (conn *ServerConn) close(err error) {
+	conn.locker.Lock()
+	defer conn.locker.Unlock()
+
 	if conn.IsClosed() {
 		return
 	}
 
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
-
 	close(conn.closeC)
+	conn.closed.Store(true)
+
 	conn.server.removeConnection(conn)
 	conn.handler.OnClosed(err)
-	conn.closed.Store(true)
+	conn.server.handler.OnConnClosed(conn, err)
+
 }

@@ -105,14 +105,14 @@ func (f *FecCodecEncoder) Encode(rawData []byte) (fecData [][]byte, err error) {
 		panic("raw data length invalid")
 	}
 
-	l := len(rawData)
-	f.q[f.insertIndex] = f.q[f.insertIndex][:fecHeaderSize+l]
+	n := len(rawData)
+	f.q[f.insertIndex] = f.q[f.insertIndex][:fecHeaderSize+n]
 	copy(f.q[f.insertIndex][fecHeaderSize:], rawData)
-	binary.LittleEndian.PutUint16(f.q[f.insertIndex][fecHeaderOffset:], uint16(l))
+	binary.LittleEndian.PutUint16(f.q[f.insertIndex][fecHeaderOffset:], uint16(n))
 	f.lastInsertTime = gokcp.SetupFromNowMS()
 
-	if l > f.maxRawDataLen {
-		f.maxRawDataLen = l
+	if n > f.maxRawDataLen {
+		f.maxRawDataLen = n
 	}
 
 	if (f.insertIndex + 1) == f.dataShards {
@@ -120,7 +120,7 @@ func (f *FecCodecEncoder) Encode(rawData []byte) (fecData [][]byte, err error) {
 		for i := 0; i < (f.dataShards + f.parityShards); i++ {
 			if i >= f.dataShards {
 				f.q[i] = f.q[i][:maxLen]
-				f.codecData[i] = f.q[i][fecHeaderSize:maxLen]
+				f.codecData[i] = f.q[i][fecHeaderOffset:maxLen]
 			} else {
 				orgLen := len(f.q[i])
 				if orgLen < maxLen {
@@ -128,7 +128,7 @@ func (f *FecCodecEncoder) Encode(rawData []byte) (fecData [][]byte, err error) {
 					copy(f.q[i][orgLen:maxLen], f.zero)
 				}
 
-				f.codecData[i] = f.q[i][fecHeaderSize:maxLen]
+				f.codecData[i] = f.q[i][fecHeaderOffset:maxLen]
 			}
 		}
 
@@ -258,16 +258,13 @@ func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, 
 		}
 
 		if v.shardsCount >= f.dataShards {
-			ls := make(map[int]int)
 			codec := v.q
 			for i := 0; i < len(v.q); i++ {
 				d := v.q[i]
 				if len(d) > 0 {
 					sn = binary.LittleEndian.Uint32(d)
 					startRange = int(sn) - (int(sn) % f.shards)
-					codec[(int(sn) - startRange)] = d[fecHeaderSize:len(d)]
-					n := binary.LittleEndian.Uint16(d[fecHeaderOffset:])
-					ls[(int(sn) - startRange)] = int(n)
+					codec[(int(sn) - startRange)] = d[fecHeaderOffset:]
 				}
 			}
 
@@ -276,15 +273,17 @@ func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, 
 				return
 			}
 
-			for j, _ := range codec {
-				n, exist := ls[j]
-				if exist {
-					codec[j] = codec[j][:n]
+			reconstructed := codec[:f.dataShards]
+			for i := 0; i < len(reconstructed); i++ {
+				n := binary.LittleEndian.Uint16(reconstructed[i])
+				if n > 0 {
+					reconstructed[i] = reconstructed[i][fecLengthOffset:]
+					reconstructed[i] = reconstructed[i][:n]
 				}
 			}
 
 			v.decoded = true
-			f.result = append(f.result, codec[:f.dataShards]...)
+			f.result = append(f.result, reconstructed...)
 			f.rawDatas[k] = v
 			continue
 		}

@@ -22,17 +22,18 @@ type ClientConn struct {
 }
 
 func (conn *ClientConn) close(err error) {
+	conn.locker.Lock()
+	defer conn.locker.Unlock()
+
 	if conn.IsClosed() {
 		return
 	}
 
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
-
-	close(conn.closeC)
 	conn.rwc.Close()
-	conn.handler.OnClosed(err)
+	close(conn.closeC)
+
 	conn.closed.Store(true)
+	conn.handler.OnClosed(err)
 }
 
 func (conn *ClientConn) onHeartbeat(data []byte) error {

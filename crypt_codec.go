@@ -166,6 +166,7 @@ func (codec *Salsa20Crypto) Encrypt(src []byte) (dst []byte, err error) {
 	salsa20.XORKeyStream(codec.enPoly1305Key[:], codec.enPoly1305Key[:], nonce.data, &codec.key)
 	poly1305.Sum(&codec.enMacBuf, src[macSize:], &codec.enPoly1305Key)
 	copy(src, codec.enMacBuf[:])
+
 	zero := zeroValue.Load().([]byte)
 	copy(codec.enPoly1305Key[:], zero)
 	// nonce.incr()
@@ -176,6 +177,7 @@ func (codec *Salsa20Crypto) Decrypt(src []byte) (dst []byte, err error) {
 	nonce := codec.readNonce.Load().(*CryptoNonce)
 	salsa20.XORKeyStream(codec.dePoly1305Key[:], codec.dePoly1305Key[:], nonce.data, &codec.key)
 	copy(codec.deMacBuf[:], src[:macSize])
+
 	if !poly1305.Verify(&codec.deMacBuf, src[macSize:], &codec.dePoly1305Key) {
 		return nil, ErrMessageAuthFailed
 	}
