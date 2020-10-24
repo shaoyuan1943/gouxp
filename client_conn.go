@@ -54,16 +54,16 @@ func (conn *ClientConn) onHandshake(data []byte) error {
 	// 2. init data buffer
 	conn.kcpDataBuffer = make([]byte, maxDataLengthLimit)
 
-	// 5. client handler callback
+	// 3. client handler callback
 	conn.handler.OnReady()
 
-	// 3. send first heartbeat
+	// 4. send first heartbeat
 	err := conn.heartbeat()
 	if err != nil {
 		return err
 	}
 
-	// 4. update KCP
+	// 5. update KCP
 	go conn.update()
 
 	return nil
