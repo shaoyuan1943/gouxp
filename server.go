@@ -234,6 +234,7 @@ func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
 
 // user shuts down manually
 func (s *Server) Close() {
+	s.scheduler.Close()
 	s.close(nil)
 }
 
