@@ -69,8 +69,8 @@ func (conn *RawConn) EnableFEC() {
 		return
 	}
 
-	conn.fecEncoder = NewFecEncoder(FECDataShards, FECParityShards, int(conn.kcp.Mtu())+fecHeaderSize)
-	conn.fecDecoder = NewFecDecoder(FECDataShards, FECParityShards, int(conn.kcp.Mtu())+fecHeaderSize)
+	conn.fecEncoder = NewFecEncoder(FECDataShards, FECParityShards, int(conn.kcp.MTU())+fecHeaderSize)
+	conn.fecDecoder = NewFecDecoder(FECDataShards, FECParityShards, int(conn.kcp.MTU())+fecHeaderSize)
 }
 
 // For use KCP status:
@@ -131,7 +131,7 @@ func (conn *RawConn) SetMTU(mtu int) bool {
 	conn.locker.Lock()
 	defer conn.locker.Unlock()
 
-	if mtu >= int(MaxMTULimit) {
+	if mtu >= int(maxDataLengthLimit) {
 		return false
 	}
 
@@ -168,10 +168,14 @@ func (conn *RawConn) Write(data []byte) (int, error) {
 		return 0, ErrConnClosed
 	}
 
+	n := len(data)
+	if n > maxDataLengthLimit {
+		return 0, ErrWriteDataTooLong
+	}
+
 	conn.locker.Lock()
 	defer conn.locker.Unlock()
 
-	n := len(data)
 	waitSend := conn.kcp.WaitSend()
 	if waitSend < int(conn.kcp.SendWnd()) && waitSend < int(conn.kcp.RemoteWnd()) {
 		err := conn.kcp.Send(data)

@@ -48,11 +48,22 @@ const (
 	// | header: 18bytes | convID: 4bytes | crypto public key: 8bytes |
 	handshakeBufferSize = PacketHeaderSize + 4 + 8
 	heartbeatBufferSize = PacketHeaderSize + 4
-	MaxMTULimit         = 65535
 )
 
 var logger Logger
 
 func SetDebugLogger(l Logger) {
 	logger = l
+}
+
+var maxDataLengthLimit int
+
+func SetMaxDataLengthLimit(n int) {
+	if n != maxDataLengthLimit {
+		maxDataLengthLimit = n
+	}
+}
+
+func init() {
+	SetMaxDataLengthLimit(16383)
 }

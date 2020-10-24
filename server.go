@@ -71,7 +71,7 @@ func (s *Server) removeConnection(conn *ServerConn) {
 func (s *Server) readRawDataLoop() {
 	s.waiting4Start()
 
-	buffer := make([]byte, MaxMTULimit)
+	buffer := make([]byte, maxDataLengthLimit)
 	for {
 		select {
 		case <-s.closeC:
@@ -151,7 +151,7 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) (*ServerConn, error
 	conn.server = s
 	conn.onHandshaked()
 	s.handler.OnNewConnComing(conn)
-	conn.kcpDataBuffer = make([]byte, MaxMTULimit)
+	conn.kcpDataBuffer = make([]byte, maxDataLengthLimit)
 	return conn, nil
 }
 
