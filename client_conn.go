@@ -74,7 +74,7 @@ func (conn *ClientConn) update() {
 		return
 	}
 
-	updateTicker := time.NewTicker(10 * time.Millisecond)
+	updateTicker := time.NewTicker(5 * time.Millisecond)
 	defer updateTicker.Stop()
 
 	heartbeatTicker := time.NewTicker(2 * time.Second)
