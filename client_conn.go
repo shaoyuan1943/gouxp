@@ -2,6 +2,8 @@ package gouxp
 
 import (
 	"encoding/binary"
+	"errors"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -70,6 +72,18 @@ func (conn *ClientConn) onHandshake(data []byte) error {
 }
 
 func (conn *ClientConn) update() {
+	defer func() {
+		if r := recover(); r != nil {
+			var stackBuffer [4096]byte
+			n := runtime.Stack(stackBuffer[:], false)
+			if logger != nil {
+				logger.Errorf("client conn exit from panic: %v", stackBuffer[:n])
+			}
+
+			conn.close(errors.New("client conn exit from panic"))
+		}
+	}()
+
 	if conn.IsClosed() {
 		return
 	}
