@@ -18,14 +18,14 @@ type Server struct {
 	allConn        map[string]*ServerConn
 	closeC         chan struct{}
 	scheduler      *TimerScheduler
-	locker         sync.Mutex
 	started        int64
 	connCryptoType CryptoType
+	sync.Mutex
 }
 
 func (s *Server) UseCryptoCodec(cryptoType CryptoType) {
-	s.locker.Lock()
-	defer s.locker.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	s.connCryptoType = cryptoType
 }
@@ -46,22 +46,22 @@ func (s *Server) waiting4Start() {
 }
 
 func (s *Server) findConnection(addr net.Addr) *ServerConn {
-	s.locker.Lock()
-	defer s.locker.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	return s.allConn[addr.String()]
 }
 
 func (s *Server) addConnection(addr net.Addr, conn *ServerConn) {
-	s.locker.Lock()
-	defer s.locker.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	s.allConn[addr.String()] = conn
 }
 
 func (s *Server) removeConnection(conn *ServerConn) {
-	s.locker.Lock()
-	defer s.locker.Unlock()
+	s.Lock()
+	defer s.Unlock()
 
 	if _, ok := s.allConn[conn.addr.String()]; ok {
 		delete(s.allConn, conn.addr.String())
@@ -239,13 +239,13 @@ func (s *Server) Close() {
 }
 
 func (s *Server) close(err error) {
-	s.locker.Lock()
+	s.Lock()
 	tmp := make([]*ServerConn, len(s.allConn))
 	tmp = tmp[:0]
 	for _, conn := range s.allConn {
 		tmp = append(tmp, conn)
 	}
-	s.locker.Unlock()
+	s.Unlock()
 
 	for _, conn := range tmp {
 		conn.close(err)

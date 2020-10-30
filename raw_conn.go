@@ -22,13 +22,13 @@ type RawConn struct {
 	handler        ConnHandler
 	closeC         chan struct{}
 	closed         atomic.Value
-	locker         sync.Mutex
 	kcpStatus      *gokcp.KCPStatus
 	stopKCPStatusC chan struct{}
 	fecEncoder     *FecCodecEncoder
 	fecDecoder     *FecCodecDecoder
 	lastActiveTime uint32
 	kcpDataBuffer  []byte
+	sync.Mutex
 }
 
 func (conn *RawConn) encrypt(data []byte) (cipherData []byte, err error) {
@@ -59,8 +59,8 @@ func (conn *RawConn) write(data []byte) error {
 }
 
 func (conn *RawConn) onKCPDataInput(data []byte) error {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
+	conn.Lock()
+	defer conn.Unlock()
 
 	return conn.kcp.Input(data)
 }

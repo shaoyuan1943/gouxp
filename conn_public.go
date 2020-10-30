@@ -13,8 +13,8 @@ import (
 
 // ClientConn
 func (conn *ClientConn) UseCryptoCodec(cryptoType CryptoType) {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
+	conn.Lock()
+	defer conn.Unlock()
 
 	conn.cryptoCodec = createCryptoCodec(cryptoType)
 }
@@ -62,8 +62,8 @@ func NewClientConn(rwc net.PacketConn, addr net.Addr, handler ConnHandler) *Clie
 
 // RawConn
 func (conn *RawConn) EnableFEC() {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
+	conn.Lock()
+	defer conn.Unlock()
 
 	if conn.fecEncoder != nil && conn.fecDecoder != nil {
 		return
@@ -90,9 +90,9 @@ func (conn *RawConn) StartKCPStatus() {
 			case <-conn.closeC:
 				return
 			case <-ticker.C:
-				conn.locker.Lock()
+				conn.Lock()
 				conn.kcp.Snapshot(conn.kcpStatus)
-				conn.locker.Unlock()
+				conn.Unlock()
 				logKCPStatus(conn.ID(), conn.kcpStatus)
 			}
 		}
@@ -112,8 +112,8 @@ func (conn *RawConn) ID() uint32 {
 }
 
 func (conn *RawConn) SetConnHandler(handler ConnHandler) {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
+	conn.Lock()
+	defer conn.Unlock()
 
 	conn.handler = handler
 }
@@ -121,15 +121,15 @@ func (conn *RawConn) SetConnHandler(handler ConnHandler) {
 // SetWindow\SetMTU\SetUpdateInterval\SetUpdateInterval
 // MUST invoke before start in single goroutine!
 func (conn *RawConn) SetWindow(sndWnd, rcvWnd int) {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
+	conn.Lock()
+	defer conn.Unlock()
 
 	conn.kcp.SetWndSize(sndWnd, rcvWnd)
 }
 
 func (conn *RawConn) SetMTU(mtu int) bool {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
+	conn.Lock()
+	defer conn.Unlock()
 
 	if mtu >= int(maxDataLengthLimit) {
 		return false
@@ -149,8 +149,8 @@ func (conn *RawConn) SetMTU(mtu int) bool {
 }
 
 func (conn *RawConn) SetUpdateInterval(interval int) {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
+	conn.Lock()
+	defer conn.Unlock()
 
 	conn.kcp.SetInterval(interval)
 }
@@ -173,8 +173,8 @@ func (conn *RawConn) Write(data []byte) (int, error) {
 		return 0, ErrWriteDataTooLong
 	}
 
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
+	conn.Lock()
+	defer conn.Unlock()
 
 	waitSend := conn.kcp.WaitSend()
 	if waitSend < int(conn.kcp.SendWnd()) && waitSend < int(conn.kcp.RemoteWnd()) {

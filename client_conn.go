@@ -24,8 +24,8 @@ type ClientConn struct {
 }
 
 func (conn *ClientConn) close(err error) {
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
+	conn.Lock()
+	defer conn.Unlock()
 
 	if conn.IsClosed() {
 		return
@@ -110,8 +110,8 @@ func (conn *ClientConn) update() {
 	}
 
 	updateKCP := func() error {
-		conn.locker.Lock()
-		defer conn.locker.Unlock()
+		conn.Lock()
+		defer conn.Unlock()
 
 		rvErr := conn.recvFromKCP()
 		if rvErr != nil {
@@ -239,8 +239,8 @@ func (conn *ClientConn) heartbeat() error {
 	binary.LittleEndian.PutUint16(heartbeatBuffer[macSize:], uint16(protoTypeHeartbeat))
 	binary.LittleEndian.PutUint32(heartbeatBuffer[PacketHeaderSize:], gokcp.SetupFromNowMS())
 
-	conn.locker.Lock()
-	defer conn.locker.Unlock()
+	conn.Lock()
+	defer conn.Unlock()
 
 	cipherData, err := conn.encrypt(heartbeatBuffer[:])
 	if err != nil {
