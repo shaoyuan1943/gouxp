@@ -209,6 +209,18 @@ func (conn *ClientConn) onRecvRawData(data []byte) {
 }
 
 func (conn *ClientConn) readRawDataLoop() {
+	defer func() {
+		if r := recover(); r != nil {
+			var stackBuffer [4096]byte
+			n := runtime.Stack(stackBuffer[:], false)
+			if logger != nil {
+				logger.Errorf("client conn exit from panic: %v", stackBuffer[:n])
+			}
+
+			conn.close(errors.New("client conn exit from panic"))
+		}
+	}()
+
 	buffer := make([]byte, maxDataLengthLimit)
 	for {
 		select {

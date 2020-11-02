@@ -2,7 +2,9 @@ package gouxp
 
 import (
 	"encoding/binary"
+	"errors"
 	"net"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -69,8 +71,19 @@ func (s *Server) removeConnection(conn *ServerConn) {
 }
 
 func (s *Server) readRawDataLoop() {
-	s.waiting4Start()
+	defer func() {
+		if r := recover(); r != nil {
+			var stackBuffer [4096]byte
+			n := runtime.Stack(stackBuffer[:], false)
+			if logger != nil {
+				logger.Errorf("server exit from panic: %v", stackBuffer[:n])
+			}
 
+			s.close(errors.New("server exit from panic"))
+		}
+	}()
+
+	s.waiting4Start()
 	buffer := make([]byte, maxDataLengthLimit)
 	for {
 		select {
