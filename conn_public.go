@@ -131,7 +131,7 @@ func (conn *RawConn) SetMTU(mtu int) bool {
 	conn.Lock()
 	defer conn.Unlock()
 
-	if mtu >= int(maxDataLengthLimit) {
+	if mtu >= maxDataLengthLimit {
 		return false
 	}
 
