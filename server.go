@@ -234,11 +234,12 @@ func (s *Server) onRecvRawData(addr net.Addr, data []byte) {
 
 // user shuts down manually
 func (s *Server) Close() {
-	s.scheduler.Close()
 	s.close(nil)
 }
 
 func (s *Server) close(err error) {
+	s.scheduler.Close()
+
 	s.Lock()
 	tmp := make([]*ServerConn, len(s.allConn))
 	tmp = tmp[:0]
