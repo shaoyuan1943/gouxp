@@ -16,7 +16,7 @@
 ### 2. 以回调方式将数据返回用户层（应用层）
 用户层对于gouxp的交互方式为接口回调（参见`interface.go`），之所以采用回调，主要考虑是简单且减少与gouxp不必要的交互。用户只需要关注PacketConn关闭了（`OnClosed`）、有数据来了（`OnNewDataComing`）这两个事件即可。
 
-### 3. PacketConn读与KCP读写分离
+### 3. 读写分离
 PacketConn的读写与KCP的读写由两个goroutinue负责，PacketConn的读写阻塞不影响KCP的读写。
 
 ### 4. 内置完整Chacha20poly1305和Salas20加解密
