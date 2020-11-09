@@ -159,7 +159,7 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) (*ServerConn, error
 	conn.kcp.SetBufferReserved(int(PacketHeaderSize))
 	conn.kcp.SetNoDelay(true, 10, 2, true)
 	conn.closed.Store(false)
-	conn.closer = conn
+	conn.connCloser = conn
 	conn.closeC = make(chan struct{})
 	conn.server = s
 	conn.onHandshaked()

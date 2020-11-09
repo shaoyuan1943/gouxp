@@ -9,12 +9,12 @@ import (
 	"github.com/shaoyuan1943/gokcp"
 )
 
-type closer interface {
+type connCloser interface {
 	close(err error)
 }
 
 type RawConn struct {
-	closer
+	connCloser
 	kcp            *gokcp.KCP
 	addr           net.Addr
 	rwc            net.PacketConn

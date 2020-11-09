@@ -54,7 +54,7 @@ func NewClientConn(rwc net.PacketConn, addr net.Addr, handler ConnHandler) *Clie
 	conn.kcp.SetBufferReserved(int(PacketHeaderSize))
 	conn.kcp.SetNoDelay(true, 10, 2, true)
 	conn.closed.Store(false)
-	conn.closer = conn
+	conn.connCloser = conn
 	return conn
 }
 
