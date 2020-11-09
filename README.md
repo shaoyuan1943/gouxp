@@ -1,4 +1,9 @@
 # gouxp
+[![Powered][2]][1]
+
+[1]: https://github.com/skywind3000/kcp
+[2]: https://raw.githubusercontent.com/skywind3000/kcp/master/kcp.svg
+
 基于[gokcp](https://github.com/shaoyuan1943/gokcp)开箱即用的可靠UDP传输协议开发包。
 
 ### 如何使用
