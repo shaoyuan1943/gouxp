@@ -65,5 +65,6 @@ func SetMaxDataLengthLimit(n int) {
 }
 
 func init() {
+	// 16K
 	SetMaxDataLengthLimit(16383)
 }

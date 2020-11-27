@@ -84,10 +84,6 @@ func (conn *ClientConn) update() {
 		}
 	}()
 
-	if conn.IsClosed() {
-		return
-	}
-
 	updateTicker := time.NewTicker(5 * time.Millisecond)
 	defer updateTicker.Stop()
 
@@ -126,24 +122,22 @@ func (conn *ClientConn) update() {
 		return nil
 	}
 
-	for {
-		if conn.IsClosed() {
-			return
-		}
+	if conn.IsClosed() {
+		return
+	}
 
+	for {
 		select {
 		case <-conn.closeC:
 			return
 		case <-heartbeatTicker.C:
 			err = updateHeartbeat()
-			if err != nil {
-				return
-			}
 		case <-updateTicker.C:
 			err = updateKCP()
-			if err != nil {
-				return
-			}
+		}
+
+		if err != nil {
+			return
 		}
 	}
 }
