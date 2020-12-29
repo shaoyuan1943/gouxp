@@ -40,11 +40,6 @@ func (p PlaintextData) Data() []byte {
 var ConvID uint32 = 555
 
 const (
-	FECDataShards   = 3
-	FECParityShards = 2
-)
-
-const (
 	// | header: 18bytes | convID: 4bytes | crypto public key: 8bytes |
 	handshakeBufferSize = PacketHeaderSize + 4 + 8
 	heartbeatBufferSize = PacketHeaderSize + 4
@@ -54,17 +49,4 @@ var logger Logger
 
 func SetDebugLogger(l Logger) {
 	logger = l
-}
-
-var maxDataLengthLimit int
-
-func SetMaxDataLengthLimit(n int) {
-	if n != maxDataLengthLimit {
-		maxDataLengthLimit = n
-	}
-}
-
-func init() {
-	// 16K
-	SetMaxDataLengthLimit(16383)
 }

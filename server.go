@@ -22,6 +22,7 @@ type Server struct {
 	scheduler      *TimerScheduler
 	started        int64
 	connCryptoType CryptoType
+	bufferLen      int
 	sync.Mutex
 }
 
@@ -84,7 +85,7 @@ func (s *Server) readRawDataLoop() {
 	}()
 
 	s.waiting4Start()
-	buffer := make([]byte, maxDataLengthLimit)
+	buffer := make([]byte, s.bufferLen)
 	for {
 		select {
 		case <-s.closeC:
@@ -153,6 +154,7 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) (*ServerConn, error
 	}
 
 	conn.convID = convID
+	conn.server = s
 	conn.rwc = s.rwc
 	conn.addr = addr
 	conn.kcp = gokcp.NewKCP(convID, conn.onKCPDataOutput)
@@ -161,10 +163,11 @@ func (s *Server) onNewConnection(addr net.Addr, data []byte) (*ServerConn, error
 	conn.closed.Store(false)
 	conn.connCloser = conn
 	conn.closeC = make(chan struct{})
-	conn.server = s
-	conn.onHandshaked()
+	conn.buffer = make([]byte, s.bufferLen)
+	conn.bufferLen = s.bufferLen
+
+	conn.onHandshake()
 	s.handler.OnNewConnComing(conn)
-	conn.kcpDataBuffer = make([]byte, maxDataLengthLimit)
 	return conn, nil
 }
 
@@ -275,13 +278,14 @@ func (s *Server) Start() {
 	}
 }
 
-func NewServer(rwc net.PacketConn, handler ServerHandler, parallelCount uint32) *Server {
+func NewServer(rwc net.PacketConn, handler ServerHandler, parallelCount uint32, bufferLen int) *Server {
 	s := &Server{
 		rwc:       rwc,
 		handler:   handler,
 		allConn:   make(map[string]*ServerConn),
 		closeC:    make(chan struct{}),
 		scheduler: NewTimerScheduler(parallelCount),
+		bufferLen: bufferLen,
 	}
 
 	go s.readRawDataLoop()

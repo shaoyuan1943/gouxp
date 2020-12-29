@@ -43,7 +43,7 @@ func (conn *ClientConn) Start() error {
 	return nil
 }
 
-func NewClientConn(rwc net.PacketConn, addr net.Addr, handler ConnHandler) *ClientConn {
+func NewClientConn(rwc net.PacketConn, addr net.Addr, handler ConnHandler, bufferLen int) *ClientConn {
 	conn := &ClientConn{}
 	conn.convID = atomic.AddUint32(&ConvID, 1)
 	conn.rwc = rwc
@@ -55,6 +55,7 @@ func NewClientConn(rwc net.PacketConn, addr net.Addr, handler ConnHandler) *Clie
 	conn.kcp.SetNoDelay(true, 10, 2, true)
 	conn.closed.Store(false)
 	conn.connCloser = conn
+	conn.bufferLen = bufferLen
 	return conn
 }
 
@@ -131,7 +132,7 @@ func (conn *RawConn) SetMTU(mtu int) bool {
 	conn.Lock()
 	defer conn.Unlock()
 
-	if mtu >= maxDataLengthLimit {
+	if mtu >= conn.bufferLen {
 		return false
 	}
 
@@ -170,7 +171,7 @@ func (conn *RawConn) Write(data []byte) (int, error) {
 	}
 
 	n := len(data)
-	if n > maxDataLengthLimit {
+	if n > conn.bufferLen {
 		return 0, ErrWriteDataTooLong
 	}
 

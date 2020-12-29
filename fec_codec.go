@@ -12,6 +12,8 @@ import (
 )
 
 const (
+	FECDataShards   = 3
+	FECParityShards = 2
 	fecCmdData      = 0x0F
 	fecCmdParity    = 0x0E
 	fecResultSize   = 50
@@ -29,7 +31,7 @@ var (
 
 var fecBufferPool sync.Pool
 
-func getBuffer(size int) []byte {
+func bufferFromPool(size int) []byte {
 	if fecBufferPool.New == nil {
 		fecBufferPool.New = func() interface{} {
 			buffer := make([]byte, size)
@@ -42,7 +44,7 @@ func getBuffer(size int) []byte {
 	return buffer
 }
 
-func putBuffer(buffer []byte) {
+func bufferBackPool(buffer []byte) {
 	if buffer != nil {
 		fecBufferPool.Put(buffer)
 	}
@@ -230,7 +232,7 @@ func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, 
 		ds.o = make([][]byte, f.shards)
 		ds.q = make([][]byte, f.shards)
 		for i := 0; i < len(ds.q); i++ {
-			ds.o[i] = getBuffer(f.bufferSize)
+			ds.o[i] = bufferFromPool(f.bufferSize)
 			ds.q[i] = ds.o[i]
 		}
 	}
@@ -307,7 +309,7 @@ func (f *FecCodecDecoder) delShards(sumIndex int) {
 
 	for i := 0; i < f.shards; i++ {
 		if ds.o[i] != nil {
-			putBuffer(ds.o[i])
+			bufferBackPool(ds.o[i])
 		}
 	}
 

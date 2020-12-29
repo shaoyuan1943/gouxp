@@ -45,7 +45,7 @@ func main() {
 	}
 
 	server := &Server{}
-	server.Server = gouxp.NewServer(conn, server, 2)
+	server.Server = gouxp.NewServer(conn, server, 2, 16836) // bufferLen: 16K
 
 	// server.UseCryptoCodec
 	server.Start()

@@ -24,18 +24,17 @@ type ClientConn struct {
 }
 
 func (conn *ClientConn) close(err error) {
-	conn.Lock()
-	defer conn.Unlock()
-
 	if conn.IsClosed() {
 		return
 	}
 
+	conn.Lock()
+	defer conn.Unlock()
+
 	conn.rwc.Close()
 	close(conn.closeC)
-
-	conn.closed.Store(true)
 	conn.handler.OnClosed(err)
+	conn.closed.Store(true)
 }
 
 func (conn *ClientConn) onHeartbeat(data []byte) error {
@@ -54,7 +53,7 @@ func (conn *ClientConn) onHandshake(data []byte) error {
 	}
 
 	// 2. init data buffer
-	conn.kcpDataBuffer = make([]byte, maxDataLengthLimit)
+	conn.buffer = make([]byte, conn.bufferLen)
 
 	// 3. client handler callback
 	conn.handler.OnReady()
@@ -109,14 +108,14 @@ func (conn *ClientConn) update() {
 		conn.Lock()
 		defer conn.Unlock()
 
-		rvErr := conn.recvFromKCP()
-		if rvErr != nil {
-			return rvErr
+		recvErr := conn.recvFromKCP()
+		if recvErr != nil {
+			return recvErr
 		}
 
-		upErr := conn.kcp.Update()
-		if upErr != nil {
-			return upErr
+		updateErr := conn.kcp.Update()
+		if updateErr != nil {
+			return updateErr
 		}
 
 		return nil
@@ -215,7 +214,7 @@ func (conn *ClientConn) readRawDataLoop() {
 		}
 	}()
 
-	buffer := make([]byte, maxDataLengthLimit)
+	buffer := make([]byte, conn.bufferLen)
 	for {
 		select {
 		case <-conn.closeC:

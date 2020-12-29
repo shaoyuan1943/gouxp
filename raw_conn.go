@@ -27,7 +27,8 @@ type RawConn struct {
 	fecEncoder     *FecCodecEncoder
 	fecDecoder     *FecCodecDecoder
 	lastActiveTime uint32
-	kcpDataBuffer  []byte
+	buffer         []byte
+	bufferLen      int
 	sync.Mutex
 }
 
@@ -101,8 +102,8 @@ func (conn *RawConn) recvFromKCP() error {
 	for {
 		size := conn.kcp.PeekSize()
 		if size > 0 {
-			conn.kcpDataBuffer = conn.kcpDataBuffer[:size]
-			n, err := conn.kcp.Recv(conn.kcpDataBuffer)
+			conn.buffer = conn.buffer[:size]
+			n, err := conn.kcp.Recv(conn.buffer)
 			if err != nil {
 				return err
 			}
@@ -111,7 +112,7 @@ func (conn *RawConn) recvFromKCP() error {
 				return gokcp.ErrDataInvalid
 			}
 
-			conn.handler.OnNewDataComing(conn.kcpDataBuffer)
+			conn.handler.OnNewDataComing(conn.buffer)
 		} else {
 			break
 		}

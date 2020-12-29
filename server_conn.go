@@ -16,7 +16,7 @@ type ServerConn struct {
 	server *Server
 }
 
-func (conn *ServerConn) onHandshaked() {
+func (conn *ServerConn) onHandshake() {
 	go func() {
 		heartbeatTicker := time.NewTicker(2 * time.Second)
 		defer heartbeatTicker.Stop()
@@ -96,18 +96,16 @@ func (conn *ServerConn) onHeartbeat(data []byte) error {
 }
 
 func (conn *ServerConn) close(err error) {
-	conn.Lock()
-	defer conn.Unlock()
-
 	if conn.IsClosed() {
 		return
 	}
 
-	close(conn.closeC)
-	conn.closed.Store(true)
+	conn.Lock()
+	defer conn.Unlock()
 
+	close(conn.closeC)
 	conn.server.removeConnection(conn)
 	conn.handler.OnClosed(err)
 	conn.server.handler.OnConnClosed(conn, err)
-
+	conn.closed.Store(true)
 }

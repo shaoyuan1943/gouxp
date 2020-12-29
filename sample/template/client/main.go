@@ -27,7 +27,7 @@ func main() {
 	}
 
 	client := &Client{}
-	client.ClientConn = gouxp.NewClientConn(conn, udpAddr, client)
+	client.ClientConn = gouxp.NewClientConn(conn, udpAddr, client, 16836) // bufferLen: 16K
 	// client.SetMTU
 	// client.SetUpdateInterval
 	// client.SetWindow
