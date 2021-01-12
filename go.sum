@@ -25,6 +25,8 @@ github.com/shaoyuan1943/gokcp v0.0.0-20200916025754-2b7bc5ef6576 h1:ZMrZ3Pjb9hgT
 github.com/shaoyuan1943/gokcp v0.0.0-20200916025754-2b7bc5ef6576/go.mod h1:wfyF8nT1XQetwweLPmotauO0FImtp8zbz4CO+eC9qrI=
 github.com/shaoyuan1943/gokcp v0.0.0-20201012085300-4b5d434689cf h1:chNaaB/IW2XR6GmDRRCGHkD92Em1LQHvUpzVLAl2JDg=
 github.com/shaoyuan1943/gokcp v0.0.0-20201012085300-4b5d434689cf/go.mod h1:wfyF8nT1XQetwweLPmotauO0FImtp8zbz4CO+eC9qrI=
+github.com/shaoyuan1943/gokcp v0.0.0-20201026071748-5b36d4c87f61 h1:cT6J4AhDgsGhjX4BCHuVja4Rne/tsAK6WSbRtwW1VQ4=
+github.com/shaoyuan1943/gokcp v0.0.0-20201026071748-5b36d4c87f61/go.mod h1:wfyF8nT1XQetwweLPmotauO0FImtp8zbz4CO+eC9qrI=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasthttp v1.16.0 h1:9zAqOYLl8Tuy3E5R6ckzGDJ1g8+pw15oQp2iL9Jl6gQ=

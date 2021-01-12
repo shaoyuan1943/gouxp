@@ -186,7 +186,7 @@ type FecCodecDecoder struct {
 	shards       int
 	dataShards   int
 	parityShards int
-	rawDatas     map[int]DataShards
+	rawData      map[int]DataShards
 	result       [][]byte
 	offset       int
 	bufferSize   int
@@ -203,7 +203,7 @@ func NewFecDecoder(dataShards, parityShards, bufferSize int) *FecCodecDecoder {
 	}
 
 	fecDecoder.codec = decoder
-	fecDecoder.rawDatas = make(map[int]DataShards)
+	fecDecoder.rawData = make(map[int]DataShards)
 	fecDecoder.result = make([][]byte, fecResultSize)
 	fecDecoder.bufferSize = bufferSize
 	return fecDecoder
@@ -226,7 +226,7 @@ func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, 
 		sumIndex += i
 	}
 
-	ds, ok := f.rawDatas[sumIndex]
+	ds, ok := f.rawData[sumIndex]
 	if !ok {
 		ds = DataShards{}
 		ds.o = make([][]byte, f.shards)
@@ -246,16 +246,16 @@ func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, 
 	}
 
 	ds.lastInsert = now
-	f.rawDatas[sumIndex] = ds
+	f.rawData[sumIndex] = ds
 
 	f.result = f.result[:0]
-	for k, v := range f.rawDatas {
+	for k, v := range f.rawData {
 		if v.decoded {
 			f.delShards(k)
 			continue
 		}
 
-		if len(f.result) >= fecResultSize || (len(f.result)+f.dataShards) >= fecResultSize {
+		if len(f.result) >= fecResultSize || len(f.result)+f.dataShards >= fecResultSize {
 			break
 		}
 
@@ -286,7 +286,7 @@ func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, 
 
 			v.decoded = true
 			f.result = append(f.result, reconstructed...)
-			f.rawDatas[k] = v
+			f.rawData[k] = v
 			continue
 		}
 
@@ -302,7 +302,7 @@ func (f *FecCodecDecoder) Decode(fecData []byte, now uint32) (rawData [][]byte, 
 }
 
 func (f *FecCodecDecoder) delShards(sumIndex int) {
-	ds, ok := f.rawDatas[sumIndex]
+	ds, ok := f.rawData[sumIndex]
 	if !ok {
 		return
 	}
@@ -316,5 +316,5 @@ func (f *FecCodecDecoder) delShards(sumIndex int) {
 	ds.q = nil
 	ds.o = nil
 
-	delete(f.rawDatas, sumIndex)
+	delete(f.rawData, sumIndex)
 }
