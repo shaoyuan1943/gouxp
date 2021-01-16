@@ -11,15 +11,34 @@ import (
 	"github.com/klauspost/reedsolomon"
 )
 
+// fec packet format:
+// |   sn  |  cmd  |  len  | payload |
+// | 4byte | 2byte | 2byte |   ...   |
+// sn: packet sequence id
+// cmd: flag data or parity
+// len: payload length
+
+// define
 const (
 	FECDataShards   = 3
 	FECParityShards = 2
-	fecCmdData      = 0x0F
-	fecCmdParity    = 0x0E
-	fecResultSize   = 50
-	fecDataTimeout  = 10000
-	fecHeaderOffset = 6
+)
+
+// cmd
+const (
+	fecCmdData   = 0x0F
+	fecCmdParity = 0x0E
+)
+
+const (
+	fecResultSize  = 50
+	fecDataTimeout = 10000 // 10min
+)
+
+// format
+const (
 	fecLengthOffset = 2
+	fecHeaderOffset = 6
 	fecHeaderSize   = fecHeaderOffset + fecLengthOffset
 )
 

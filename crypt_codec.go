@@ -87,6 +87,7 @@ func (codec *Chacha20poly1305Crypto) Decrypt(src []byte) (dst []byte, err error)
 // In chacha20poly1305, data format is |---DATA---|---MAC---|
 // In gouxp, data format is |---MAC---|---DATA---|
 // When use chacha20poly1305, must modify data format to adapt chacha20poly1305.
+
 // Chacha20poly1305 use 12bytes nonce
 // In other way, you can use poly1305 + salsa20/chacha20 to avoid move origin data
 func NewChacha20poly1305CryptoCodec() *Chacha20poly1305Crypto {
